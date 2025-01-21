@@ -1844,7 +1844,7 @@ class ConnectivityGroup(object):
                                             copy=False, axis=0).drop_duplicates()
         
         for colname in self._vertex_properties.columns:
-            #  TODO: Check colname against existing properties
+            assert not hasattr(self, colname), "{0} is a protected name and cannot be used as vertex property!".format(colname)
             setattr(self, colname, self._vertex_properties[colname].values)
 
         # TODO: calling it "gids" might be too BlueBrain-specific! Change name?
