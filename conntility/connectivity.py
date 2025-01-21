@@ -1924,4 +1924,32 @@ class ConnectivityGroup(object):
         with h5py.File(fn, "a") as h5:
             data_grp = h5[full_prefix]
             data_grp.attrs["NEUROTOP_CLASS"] = "ConnectivityGroup"
+    
+    def analyze(self, analysis_recipe):
+        """
+        Analyze this ConnectivityGroup according to an analysis recipe.
 
+        Args:
+          analysis_recipe: A dict, or the path to a .json file containing a dict. For the format, see 
+          configuration_files.md
+        
+        Returns:
+          A concatenation of the output of analyzing all contained ConnectivityMatrices according to 
+          the recipe. Columns of the index of this object are added to the index of the output.
+          
+          For details, see configuration_files.md
+        """
+        def assemble_output(lst_res):
+            # Assuming that the output type is consistent for a given analysis
+            if len(lst_res) == 0:
+                return pd.Series([])
+            if isinstance(lst_res[0], pd.Series) or isinstance(lst_res[0], pd.DataFrame):
+                return pd.concat(lst_res, axis=0, names=self.index.names, keys=self.index.values)
+            return pd.Series(lst_res, index=self.index.copy())
+            
+        out_dict = {}
+        for _idx in self.index:
+            res = self[_idx].analyze(analysis_recipe)
+            for k, v in res.items():
+                out_dict.setdefault(k, []).append(v)
+        return dict([(k, assemble_output(v)) for k, v in out_dict.items()])
