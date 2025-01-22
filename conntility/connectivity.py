@@ -2,7 +2,7 @@
 """
 Classes to get, save and load (static or time dependent) connection matrices and sample submatrices from them
 authors: Michael Reimann, András Ecker
-last modified: 01.2022
+last modified: 01.2025
 """
 
 import h5py
@@ -1899,7 +1899,29 @@ class ConnectivityGroup(object):
     
     @classmethod
     def from_h5(cls, fn, group_name=None, prefix=None):
-        raise NotImplementedError()
+        if group_name is None:
+            group_name = "conn_group"
+        if prefix is None:
+            prefix = "connectivity"
+        
+        prefix = prefix + "/" + group_name
+        dset_tbl = prefix + "/table"
+
+        try:
+            idx = pd.read_hdf(fn, dset_tbl)
+        except:
+            raise ValueError("File not foudn or no TOC found at {0} in {1}".format(prefix, fn))
+        idx = idx.set_index(list(idx.columns[:-1]))[idx.columns[-1]]
+
+        def read_mat(str_path):
+            try:
+                fn_read, prefix_read, name_read = str_path.split("::")
+                return ConnectivityMatrix.from_h5(fn, name_read, prefix_read)
+            except:
+                raise ValueError("Invalid TOC at {0} in {1}".format(prefix, fn))
+            
+        ret = idx.apply(read_mat)
+        return cls(ret)
 
     def to_h5(self, fn, group_name=None, prefix=None):
         if prefix is None:
