@@ -1899,6 +1899,15 @@ class ConnectivityGroup(object):
     
     @classmethod
     def from_h5(cls, fn, group_name=None, prefix=None):
+        """
+        Constructor from hdf5. Instantiates a ConnectivityGroup from an .h5 file that has been written by 
+        ConnectivityGroup.to_h5().
+        :param fn: A path to the file to be read the ConnectivityGrouip from.
+        :param group_name: (optional): The name of the group inside `fn' to read from. The same `group_name' 
+        that was used in the ConnectivityGroup.to_h5() call to write the file.
+        :param prefix: (optional) The prefix inside `fn' to read from. The same `prefix' that was used in the
+        ConnectivityGroup.to_h5() call to write the file.
+        """
         if group_name is None:
             group_name = "conn_group"
         if prefix is None:
