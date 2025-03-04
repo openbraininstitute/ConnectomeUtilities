@@ -92,9 +92,9 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
             out_data.setdefault(colname, []).extend(S[colname].values)
 
     M = dict([
-        (afunc,
-         sparse.coo_matrix((out_data[afunc], (row_indices, col_indices)), shape=shape).tocsr())
-         for afunc in agg_func
+        (colname,
+         sparse.coo_matrix((out_data[colname], (row_indices, col_indices)), shape=shape).tocsr())
+         for colname in out_data.keys()
     ])
     return M
 
@@ -171,7 +171,8 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
                     data.setdefault(colname, []).extend(res[colname].to_numpy())
 
             indptr.append(len(indices))
-        mats = {agg_f: sparse.csc_matrix((data[agg_f], indices, indptr), shape=(N, M)) for agg_f in agg_func}
+        mats = {colname: sparse.csc_matrix((data[colname], indices, indptr), shape=(N, M))
+                for colname in data.keys()}
         return mats
 
 
