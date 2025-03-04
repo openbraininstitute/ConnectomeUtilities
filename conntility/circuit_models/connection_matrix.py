@@ -149,7 +149,7 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
         mat = sparse.csc_matrix((data, indices, indptr), shape=(N, M))
         return mat
     else:
-        data = {agg_f: [] for agg_f in agg_func}
+        data = {}
         for id_post in tqdm.tqdm(idx_post):
             ids_pre = []
             data_pre = []
@@ -167,8 +167,8 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
                 # here is the main difference from the one below
                 # (this is needed to be in sync. for `.io.synapse_report/aggregate_data()`)
                 res = data_pre.groupby(level=0, group_keys=False).agg(agg_func)
-                for agg_f in agg_func:
-                    data[agg_f].extend(res[agg_f].to_numpy())
+                for colname in res.columns:
+                    data.setdefault(colname, []).extend(res[colname].to_numpy())
 
             indptr.append(len(indices))
         mats = {agg_f: sparse.csc_matrix((data[agg_f], indices, indptr), shape=(N, M)) for agg_f in agg_func}
