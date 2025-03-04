@@ -78,7 +78,7 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
     dset_sz = h5['source_node_id'].shape[0]
     row_indices = []
     col_indices = []
-    out_data = dict([(afunc, []) for afunc in agg_func])
+    out_data = {}
 
     splits = numpy.arange(0, dset_sz + chunk, chunk)
     for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), total=len(splits) - 1):
@@ -88,8 +88,8 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
         S = pandas.Series(data, index=pandas.MultiIndex.from_arrays([A, B])).groupby(level=[0, 1]).agg(agg_func)
         Si = S.index.to_frame()
         row_indices.extend(Si[0].values); col_indices.extend(Si[1].values)
-        for afunc in agg_func:
-            out_data[afunc].extend(S[afunc].values)
+        for colname in S.columns:
+            out_data.setdefault(colname, []).extend(S[colname].values)
 
     M = dict([
         (afunc,
