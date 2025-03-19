@@ -1,14 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Functionality for tiling locations in a plane
-import logging
 
 import pandas as pd
 import numpy as np
 # from matplotlib import pyplot as plt
 # from matplotlib.patches import Rectangle
-
-
-LOG = logging.getLogger("Flatmap Utility")
 
 
 def P(x, y):
@@ -349,30 +345,30 @@ class TriTille:
         imax = int(hmax / (self._ratio[0] * self._side / 2.))
         vi_outside_grid = [i for i in range(-imax, imax)
                            if not draw_vaxis(i, **kwargs.get("draw_vaxis", {}))]
-        LOG.info("Lines along the v-axis that didn't fit the window: %s / %s",
+        print("Lines along the v-axis that didn't fit the window: %s / %s",
                     len(vi_outside_grid), (2 * imax))
-        LOG.info("\t: %s", vi_outside_grid)
+        print("\t: %s", vi_outside_grid)
 
         ryi_outside_grid = [i for i in range(-imax, imax)
                             if not draw_relyaxis(i, **kwargs.get("draw_relyaxis", {}))]
-        LOG.info("Lines along the TriTille's y-axis that didn't fit the window: %s / %s",
+        print("Lines along the TriTille's y-axis that didn't fit the window: %s / %s",
                     len(ryi_outside_grid), (2 * imax))
-        LOG.info("\t: %s", ryi_outside_grid)
+        print("\t: %s", ryi_outside_grid)
 
         wmax = width + self._origin[0] + 1
         jmax = int(wmax / self._side)
         j_outside_grid = [j for j in range(-jmax, jmax)
                           if not draw_uaxis(j, **kwargs.get("draw_uaxis", {}))]
 
-        LOG.info("Lines along the u-axis that didn't fit the window: %s / %s",
+        print("Lines along the u-axis that didn't fit the window: %s / %s",
                     len(j_outside_grid), 2 * jmax)
-        LOG.info("\t: %s", j_outside_grid)
+        print("\t: %s", j_outside_grid)
 
         rxj_outside_grid = [j for j in range(-jmax, jmax)
                             if not draw_relxaxis(j, **kwargs.get("draw_relxaxis", {}))]
-        LOG.info("Lines along the TriTille's x-axis that didn't fit the window: %s / %s",
+        print("Lines along the TriTille's x-axis that didn't fit the window: %s / %s",
                     len(rxj_outside_grid), (2 * jmax))
-        LOG.info("\t: %s", rxj_outside_grid)
+        print("\t: %s", rxj_outside_grid)
         return graphic
 
     def bin_rhombically(self, xys, **kwargs):
