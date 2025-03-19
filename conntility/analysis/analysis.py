@@ -188,7 +188,7 @@ class SingleMethodAnalysisFromSource:
         )
 
         if log_info:
-            LOG.info("Done %s", log_info)
+            print("Done %s", log_info)
 
         return result
 
