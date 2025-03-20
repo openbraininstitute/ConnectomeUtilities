@@ -1920,7 +1920,6 @@ class ConnectivityGroup(object):
             idx = pd.read_hdf(fn, dset_tbl)
         except:
             raise ValueError("File not foudn or no TOC found at {0} in {1}".format(prefix, fn))
-        idx = pd.read_hdf("_deleteme.h5", "connectivity/conn_group/table")
         _mi = pd.MultiIndex.from_frame(idx[idx.columns[:-1]])
         idx = idx[idx.columns[-1]]
         # Explicitly setting MultiIndex because otherwise pandas turns MultiIndex with one level to Index.
