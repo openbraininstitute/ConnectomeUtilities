@@ -4,9 +4,9 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Connectome-Utilities"
-version = "0.4.8"
+version = "0.4.10"
 authors = [
-  { name="Blue Brain Project, EPFL", email="conntility.645co@simplelogin.com" },
+  { name="Open Brain Institute", email="conntility.645co@simplelogin.com" },
 ]
 description = "Complex network representation and analysis layer"
 readme = "README.md"
@@ -30,8 +30,8 @@ dependencies = ["numpy>=1.20.0",
                 "voxcell"]
 
 [project.urls]
-"Homepage" = "https://github.com/BlueBrain/ConnectomeUtilities"
-"Bug Tracker" = "https://github.com/BlueBrain/ConnectomeUtilities/issues"
+"Homepage" = "https://github.com/openbraininstitute/ConnectomeUtilities"
+"Bug Tracker" = "https://github.com/openbraininstitute/ConnectomeUtilities/issues"
 
 [tool.setuptools]
 packages = ["conntility",

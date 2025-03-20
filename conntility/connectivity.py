@@ -2,7 +2,7 @@
 """
 Classes to get, save and load (static or time dependent) connection matrices and sample submatrices from them
 authors: Michael Reimann, András Ecker
-last modified: 01.2022
+last modified: 01.2025
 """
 
 import h5py
@@ -1844,7 +1844,7 @@ class ConnectivityGroup(object):
                                             copy=False, axis=0).drop_duplicates()
         
         for colname in self._vertex_properties.columns:
-            #  TODO: Check colname against existing properties
+            assert not hasattr(self, colname), "{0} is a protected name and cannot be used as vertex property!".format(colname)
             setattr(self, colname, self._vertex_properties[colname].values)
 
         # TODO: calling it "gids" might be too BlueBrain-specific! Change name?
@@ -1899,7 +1899,41 @@ class ConnectivityGroup(object):
     
     @classmethod
     def from_h5(cls, fn, group_name=None, prefix=None):
-        raise NotImplementedError()
+        """
+        Constructor from hdf5. Instantiates a ConnectivityGroup from an .h5 file that has been written by 
+        ConnectivityGroup.to_h5().
+        :param fn: A path to the file to be read the ConnectivityGrouip from.
+        :param group_name: (optional): The name of the group inside `fn' to read from. The same `group_name' 
+        that was used in the ConnectivityGroup.to_h5() call to write the file.
+        :param prefix: (optional) The prefix inside `fn' to read from. The same `prefix' that was used in the
+        ConnectivityGroup.to_h5() call to write the file.
+        """
+        if group_name is None:
+            group_name = "conn_group"
+        if prefix is None:
+            prefix = "connectivity"
+        
+        prefix = prefix + "/" + group_name
+        dset_tbl = prefix + "/table"
+
+        try:
+            idx = pd.read_hdf(fn, dset_tbl)
+        except:
+            raise ValueError("File not foudn or no TOC found at {0} in {1}".format(prefix, fn))
+        _mi = pd.MultiIndex.from_frame(idx[idx.columns[:-1]])
+        idx = idx[idx.columns[-1]]
+        # Explicitly setting MultiIndex because otherwise pandas turns MultiIndex with one level to Index.
+        idx.index = _mi
+
+        def read_mat(str_path):
+            try:
+                fn_read, prefix_read, name_read = str_path.split("::")
+                return ConnectivityMatrix.from_h5(fn, name_read, prefix_read)
+            except:
+                raise ValueError("Invalid TOC at {0} in {1}".format(prefix, fn))
+            
+        ret = idx.apply(read_mat)
+        return cls(ret)
 
     def to_h5(self, fn, group_name=None, prefix=None):
         if prefix is None:
@@ -1924,4 +1958,32 @@ class ConnectivityGroup(object):
         with h5py.File(fn, "a") as h5:
             data_grp = h5[full_prefix]
             data_grp.attrs["NEUROTOP_CLASS"] = "ConnectivityGroup"
+    
+    def analyze(self, analysis_recipe):
+        """
+        Analyze this ConnectivityGroup according to an analysis recipe.
 
+        Args:
+          analysis_recipe: A dict, or the path to a .json file containing a dict. For the format, see 
+          configuration_files.md
+        
+        Returns:
+          A concatenation of the output of analyzing all contained ConnectivityMatrices according to 
+          the recipe. Columns of the index of this object are added to the index of the output.
+          
+          For details, see configuration_files.md
+        """
+        def assemble_output(lst_res):
+            # Assuming that the output type is consistent for a given analysis
+            if len(lst_res) == 0:
+                return pd.Series([])
+            if isinstance(lst_res[0], pd.Series) or isinstance(lst_res[0], pd.DataFrame):
+                return pd.concat(lst_res, axis=0, names=self.index.names, keys=self.index.values)
+            return pd.Series(lst_res, index=self.index.copy())
+            
+        out_dict = {}
+        for _idx in self.index:
+            res = self[_idx].analyze(analysis_recipe)
+            for k, v in res.items():
+                out_dict.setdefault(k, []).append(v)
+        return dict([(k, assemble_output(v)) for k, v in out_dict.items()])

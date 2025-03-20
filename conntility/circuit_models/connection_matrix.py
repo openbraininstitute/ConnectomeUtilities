@@ -78,7 +78,7 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
     dset_sz = h5['source_node_id'].shape[0]
     row_indices = []
     col_indices = []
-    out_data = dict([(afunc, []) for afunc in agg_func])
+    out_data = {}
 
     splits = numpy.arange(0, dset_sz + chunk, chunk)
     for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), total=len(splits) - 1):
@@ -88,13 +88,13 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
         S = pandas.Series(data, index=pandas.MultiIndex.from_arrays([A, B])).groupby(level=[0, 1]).agg(agg_func)
         Si = S.index.to_frame()
         row_indices.extend(Si[0].values); col_indices.extend(Si[1].values)
-        for afunc in agg_func:
-            out_data[afunc].extend(S[afunc].values)
+        for colname in S.columns:
+            out_data.setdefault(colname, []).extend(S[colname].values)
 
     M = dict([
-        (afunc,
-         sparse.coo_matrix((out_data[afunc], (row_indices, col_indices)), shape=shape).tocsr())
-         for afunc in agg_func
+        (colname,
+         sparse.coo_matrix((out_data[colname], (row_indices, col_indices)), shape=shape).tocsr())
+         for colname in out_data.keys()
     ])
     return M
 
@@ -149,7 +149,7 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
         mat = sparse.csc_matrix((data, indices, indptr), shape=(N, M))
         return mat
     else:
-        data = {agg_f: [] for agg_f in agg_func}
+        data = {}
         for id_post in tqdm.tqdm(idx_post):
             ids_pre = []
             data_pre = []
@@ -167,11 +167,12 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
                 # here is the main difference from the one below
                 # (this is needed to be in sync. for `.io.synapse_report/aggregate_data()`)
                 res = data_pre.groupby(level=0, group_keys=False).agg(agg_func)
-                for agg_f in agg_func:
-                    data[agg_f].extend(res[agg_f].to_numpy())
+                for colname in res.columns:
+                    data.setdefault(colname, []).extend(res[colname].to_numpy())
 
             indptr.append(len(indices))
-        mats = {agg_f: sparse.csc_matrix((data[agg_f], indices, indptr), shape=(N, M)) for agg_f in agg_func}
+        mats = {colname: sparse.csc_matrix((data[colname], indices, indptr), shape=(N, M))
+                for colname in data.keys()}
         return mats
 
 
