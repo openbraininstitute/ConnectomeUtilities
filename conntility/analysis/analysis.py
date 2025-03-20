@@ -9,11 +9,7 @@ import os
 
 from ..plugins import import_module
 
-from ..io.logging import get_logger
 from ..circuit_models.neuron_groups.grouping_config import _resolve_includes
-
-LOG = get_logger("Topology Pipeline Analysis", "INFO")
-
 
 def widen_by_index(level, dataframe):
     """Widen a dataframe by an index level."""
@@ -175,7 +171,7 @@ class SingleMethodAnalysisFromSource:
         """..."""
         from .. import ConnectivityMatrix
         if log_info:
-            LOG.info("APPLY %s", log_info)
+            print("APPLY %s", log_info)
         decoration_kwargs = {}
         if isinstance(adjacency, ConnectivityMatrix):
             decoration_kwargs["ConnectivityMatrix"] = adjacency
@@ -192,7 +188,7 @@ class SingleMethodAnalysisFromSource:
         )
 
         if log_info:
-            LOG.info("Done %s", log_info)
+            print("Done %s", log_info)
 
         return result
 

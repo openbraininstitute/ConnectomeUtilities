@@ -157,7 +157,6 @@ In the remainder of this document, I will simply provide an overview of all func
   - *per_pixel_coordinate_transformation*: Very technical helper that provides access to the intermediate coordinate system between the original 3d coordinates and the supersampled flat coordinates, such as local coordinates "within" each pixel.
 
 - *io*: Input/Output
-  - *logging*: Centralized logger for this package
   - *write_toc_plus_payload*: Helper for storing multiple scipy.sparse matrices in a single .hdf5 file in a very efficient way
   - *read_toc_plus_payload*: Helper for reading back the stored matrices. Implements lazy reading for potential speedup.
 

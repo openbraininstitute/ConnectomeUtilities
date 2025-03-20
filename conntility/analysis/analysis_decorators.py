@@ -5,10 +5,6 @@ import numpy
 from ..circuit_models.neuron_groups import group_with_config, filter_with_config
 from ..circuit_models.neuron_groups.grouping_config import filter_config_to_dict
 
-from ..io.logging import get_logger
-
-LOG = get_logger("DECORATORS")
-
 def __submatrix_presyn__(matrix, nrn):
     return lambda x: (matrix[x.values], (nrn.iloc[x.values], nrn))
 
@@ -117,7 +113,7 @@ def __index_from_filter_configs(lst_fltr_cfg):
 
     midx = [filter_config_to_dict(fltr_cfg) for fltr_cfg in lst_fltr_cfg]
     if numpy.any([numpy.sum([len(_v) for _v in _idx.values()]) > 50 for _idx in midx]):
-        LOG.warn("""Automatically generated index for grouping excessively long.
+        print("""Automatically generated index for grouping excessively long.
         Think about explicitly specifying name="some_name" for filtered groups.""")
 
     return pandas.DataFrame.from_records(midx).astype(str)
