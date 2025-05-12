@@ -56,7 +56,7 @@ def embed_pathway(C, diffusion_time=1, n_components=3):
     print("...done! Performing diffusion mapping...")
     #  Treat voxels with zero connectivity, which would be considered disconnected from the rest of the graph
     vxl_is_valid = numpy.array(S_norm.sum(axis=1) != 0).flatten()
-    embed_coords = numpy.NaN * numpy.ones((S_norm.shape[0], n_components), dtype=float)
+    embed_coords = numpy.nan * numpy.ones((S_norm.shape[0], n_components), dtype=float)
     embed_coords[vxl_is_valid, :], embed_res = compute_diffusion_map(S_norm[numpy.ix_(vxl_is_valid, vxl_is_valid)],
                                                                      return_result=True,
                                                                      diffusion_time=diffusion_time,

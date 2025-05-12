@@ -11,7 +11,7 @@ def colored_points_to_image(flat_coords, cols, extent=None):
     flat_coords = flat_coords.astype(int)
     if extent is None:
         extent = flat_coords.max(axis=0) + 1
-    img = numpy.NaN * numpy.ones(tuple(extent) + (3, ))
+    img = numpy.nan * numpy.ones(tuple(extent) + (3, ))
     for xy, col in zip(flat_coords, cols):
         img[xy[0], xy[1], :] = col
     return img
