@@ -44,7 +44,7 @@ class MorphologyPathDistanceCalculator(object):
         offset_lists = [cumulative_section_length(_sec)
                         for _sec in m.sections]
         L = numpy.max([len(_x) for _x in offset_lists])
-        offset_lists = [_x + [numpy.NaN for _ in range(L - len(_x))]
+        offset_lists = [_x + [numpy.nan for _ in range(L - len(_x))]
                        for _x in offset_lists]
         return numpy.vstack(offset_lists)
 
@@ -176,7 +176,7 @@ class MorphologyPathDistanceCalculator(object):
         if same_section_only:
             same_section = numpy.eye(len(self.m.sections) + 1, dtype=bool)
             same_section = same_section[numpy.ix_(locs_from[str_section_id], locs_to[str_section_id])]
-            dist = numpy.NaN * numpy.ones(same_section.shape, dtype=float)
+            dist = numpy.nan * numpy.ones(same_section.shape, dtype=float)
             i, j = numpy.nonzero(same_section)
             dist[i, j] = numpy.abs(o_from[i] - o_to[j])
             return dist
@@ -208,7 +208,7 @@ class MorphologyPathDistanceCalculator(object):
     
     @staticmethod
     def __nnd__(D, _idxx):
-        if len(_idxx) <= 1: return numpy.NaN
+        if len(_idxx) <= 1: return numpy.nan
         return numpy.nanmin(D[numpy.ix_(_idxx, _idxx)], axis=0)
     
     @staticmethod
@@ -286,7 +286,7 @@ class MorphologyPathDistanceCalculator(object):
         D = self.path_distances(locs, str_section_id=str_section_id,
                                 str_segment_id=str_segment_id, str_offset=str_offset,
                                 same_section_only=same_section_only)
-        numpy.fill_diagonal(D, numpy.NaN)
+        numpy.fill_diagonal(D, numpy.nan)
         index_names = list(locs.index.names)
         assert "index" not in index_names
         locs = locs.reset_index().reset_index()
