@@ -40,7 +40,7 @@ class _MatrixNodeIndexer(object):
         """
         Return subnetwork where the value of the indexed property is within the list provided as reference.
         """
-        pop = self._parent._vertex_properties.index.values[np.in1d(self._prop, other)]
+        pop = self._parent._vertex_properties.index.values[np.isin(self._prop, other)]
         return self._parent.subpopulation(pop)
 
     def le(self, other):
@@ -227,7 +227,7 @@ class _MatrixEdgeIndexer(object):
           A list of edge ids representing the random subnetwork.
         """
         if isinstance(ref, ConnectivityMatrix):
-            assert np.all(np.in1d(ref.gids, self._parent.gids))
+            assert np.all(np.isin(ref.gids, self._parent.gids))
         else:
             if is_edges:
                 ref = self._parent.subedges(ref)
@@ -868,7 +868,7 @@ class ConnectivityMatrix(object):
           ConnectivityMatrix representing the subpopulation
         """
         subpop_ids = self.__extract_vertex_ids__(subpop_ids)
-        assert np.all(np.in1d(subpop_ids, self._vertex_properties.index.values))
+        assert np.all(np.isin(subpop_ids, self._vertex_properties.index.values))
         subpop_idx = self._lookup[subpop_ids]
         # TODO: This would be more efficient if the underlying representation was csc.
         subpop_lookup = pd.Series(range(len(subpop_idx)), index=subpop_idx)
@@ -904,7 +904,7 @@ class ConnectivityMatrix(object):
         else:
             assert len(np.unique(order)) == len(order)
             if index_name == property_name: self.subpopulation(order)
-            assert np.all(np.in1d(order, self.vertices[property_name]))
+            assert np.all(np.isin(order, self.vertices[property_name]))
             idxp = self.vertices.set_index(property_name)[index_name]
             idxx = idxp[order]
         return self.subpopulation(idxx.values)
