@@ -1,4 +1,5 @@
 {
+    "node_population": "default",
     "loading": { 
         "properties": ["x", "y", "z", "layer", "model_type"]
         },

@@ -112,6 +112,7 @@ def filter_config_to_dict(cfg_or_dict):
 
 def load_with_config(circ, cfg_or_dict, node_population=None):
     cfg = _read_if_needed(cfg_or_dict)
+    node_population = node_population or cfg.get("node_population", None)
     if "loading" in cfg:
         cfg = cfg["loading"]
     node_population = node_population or cfg.get("node_population", None)
