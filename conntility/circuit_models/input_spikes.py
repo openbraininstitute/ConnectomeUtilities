@@ -19,7 +19,7 @@ def input_spikes(sim):
         B = stim_target.value_counts()
         target = (A & B).reset_index().set_index("count").loc[True].reset_index(drop=True)
 
-        s = pandas.read_csv(spk["spike_file"], sep="\s+").rename(columns={"/scatter": "node_id"})["node_id"]
+        s = pandas.read_csv(spk["spike_file"], sep=r"\s+").rename(columns={"/scatter": "node_id"})["node_id"]
         out.append((s, source, target))
     return out
 
