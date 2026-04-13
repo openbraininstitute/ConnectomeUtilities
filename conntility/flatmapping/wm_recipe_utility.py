@@ -83,7 +83,7 @@ def atlas_of_mapping_coordinates(recipe, circ=None, fm=None, orient=None, hier=N
 
         pop_strs = regions_of_population(proj["source"], recipe)
         pop_ids = ids_of_regions(pop_strs, hier)
-        pop_mask = numpy.in1d(ann.raw.flat, pop_ids).reshape(ann.raw.shape)
+        pop_mask = numpy.isin(ann.raw.flat, pop_ids).reshape(ann.raw.shape)
         pop_flat_coords = fm.raw[pop_mask]
 
         x = numpy.array(proj["mapping_coordinate_system"]["x"])

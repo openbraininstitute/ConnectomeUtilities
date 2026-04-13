@@ -29,7 +29,7 @@ def _flat_coordinates_of_regions(names_region, fm, hier, ann, make_unique=True, 
     for region in names_region:
         reg_ids.update(hier.find(region, "acronym", with_descendants=True))
     lst_ids = list(reg_ids)
-    view3d = numpy.in1d(ann.raw.flat, lst_ids).reshape(ann.raw.shape)
+    view3d = numpy.isin(ann.raw.flat, lst_ids).reshape(ann.raw.shape)
     view2d = fm.raw[view3d]
     view2d = view2d[numpy.all(view2d >= 0, axis=1)]
 
