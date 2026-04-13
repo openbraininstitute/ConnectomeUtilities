@@ -104,7 +104,7 @@ class _MatrixNodeIndexer(object):
     def random_categorical_gids(self, ref):
         """
         Return a random subnetwork where the value of the indexed property matches the subnetwork provided as
-        reference. For categorical properties. 
+        reference. For categorical properties.
         Returns the gids of the random sample.
         """
         all_gids = self._prop.index.values
@@ -147,7 +147,7 @@ class _MatrixEdgeIndexer(object):
                 self._prop = self._prop[side]
         else:
             raise ValueError("Unknown property: {0}".format(prop_name))
-    
+
     def _reduce_(self, idxx):
         if isinstance(idxx, pd.DataFrame):
             return self._parent.subedges(np.all(idxx, axis=1))
@@ -202,12 +202,12 @@ class _MatrixEdgeIndexer(object):
         """
         #  For an actual filtration. Take all values and sweep
         raise NotImplementedError()
-    
+
     def random_by_vertex_property_ids(self, ref, prop_name, n_bins=None, is_edges=False):
         """
         TODO: Instead of specifying a node property here, specify it when instantiating this object.
-        Return a random subnetwork with the same nodes but only a subset of the edges. The subset is randomly generated 
-        based on a reference. 
+        Return a random subnetwork with the same nodes but only a subset of the edges. The subset is randomly generated
+        based on a reference.
         The returned subnetwork will match the reference in terms of the distributions of the specified node property for
         source and target nodes of edges.
 
@@ -215,7 +215,7 @@ class _MatrixEdgeIndexer(object):
           ref: A reference to match. Must represent a sub-network of the base network that contains either all nodes and
           a subset of edges, or a subset of nodes and all edges between them.
           In the first case, it is a list of edge ids (indices of ConnectivityMatrix._edges).
-          In the second case it is either a ConnectivityMatrix object or a list of the "gid" node property of the base 
+          In the second case it is either a ConnectivityMatrix object or a list of the "gid" node property of the base
           network.
 
           n_bins: If provided, the node property will be binned as specified. Node property must then be numerical.
@@ -256,7 +256,7 @@ class _MatrixEdgeIndexer(object):
         for _idx, n in ref_counts.items():
             out_edges.extend(np.random.choice(parent_edges[_idx].values, n, replace=False))
         return out_edges
-    
+
     def random_by_vertex_property(self, ref, prop_name, n_bins=None):
         """
         Generates a random subnetwork containing all nodes and a subset of edges. Based on matching
@@ -279,17 +279,17 @@ class _MatrixNeighborhoodIndexer(object):
     def __init__(self, parent):
         self._parent = parent
         self._prop = parent._lookup
-    
+
     def get_single(self, pre=None, post=None, center_first=True):
         """
         Get the neighborhood of a single node.
 
         Args:
-          pre: The id of a node in the network. The subnetwork returned will contain that node and all its 
+          pre: The id of a node in the network. The subnetwork returned will contain that node and all its
           targets.
           post: The id of a node in the network: The subnetwork returned will contain that node and all its
           sources.
-          center_first (optional, default: True): If True, the arguments of "pre" and/or "post" will be 
+          center_first (optional, default: True): If True, the arguments of "pre" and/or "post" will be
           listed first in the returned subnetwork. Otherwise, the ordering of the base network is preserved.
         """
         if pre is None and post is None: raise ValueError("Insufficient number of arguments!")
@@ -310,11 +310,11 @@ class _MatrixNeighborhoodIndexer(object):
             idxx = idxx.union(centers)
             pop_ids = self._parent._vertex_properties.index[sorted(idxx)]
         return self._parent.subpopulation(pop_ids)
-        
+
     def get(self, *args, pre=None, post=None, center_first=True):
         """
         Get the neighborhood of a single or multiple nodes.
-        A single non-keyword argument can be provided. If this is done, its value will be used for both 
+        A single non-keyword argument can be provided. If this is done, its value will be used for both
         the pre= and post= keyword arguments.
 
         For an explanation of the keyword arguments, see .get_single.
@@ -383,7 +383,7 @@ class ConnectivityMatrix(object):
             assert len(edge_properties) == len(df)
             self._edge_indices = df
 
-            if shape is None: 
+            if shape is None:
                 shape = tuple(df.max(axis=0).values + 1)
             self._edges = edge_properties
             if default_edge_property not in self.edges:
@@ -427,7 +427,7 @@ class ConnectivityMatrix(object):
         assert len(new_values) == len(self), "New values size mismatch"
         assert overwrite or (new_label not in self._vertex_properties), "Property {0} already exists!".format(new_label)
         self._vertex_properties[new_label] = new_values
-    
+
     def add_edge_property(self, new_label, new_values):
         """
         Assign values for a new property to all edges. Must be a non-existing property.
@@ -450,7 +450,7 @@ class ConnectivityMatrix(object):
                 new_values = new_values.values
             assert len(new_values) == len(self._edge_indices)
             self._edges[new_label] = new_values
-    
+
     def __inititalize_vertex_properties__(self, vertex_labels, vertex_properties):
         if vertex_properties is None:
             if vertex_labels is None:
@@ -482,19 +482,19 @@ class ConnectivityMatrix(object):
         if edge_property is None:
             edge_property = self._default_edge
         return sparse.coo_matrix((self.edges[edge_property], (self._edge_indices["row"], self._edge_indices["col"])),
-                                 shape=self._shape, copy=False)
+                                 shape=self._shape)
 
     @property
     def is_multigraph(self):
         return len(self._edge_indices) != len(self._edge_indices.drop_duplicates())
-    
+
     @property
     def edges(self):
         """
         The list of edges as a DataFrame.
         """
         return self._edges
-    
+
     @property
     def vertices(self):
         """
@@ -518,7 +518,7 @@ class ConnectivityMatrix(object):
         """
         # TODO: Think about adding GID here as well?
         return self._vertex_properties.columns.values
-    
+
     def to_reciprocal(self):
         """
         Drop all edges that are note reciprocal. Not available for multigraphs.
@@ -529,11 +529,11 @@ class ConnectivityMatrix(object):
         e = pd.concat([e_rv, self._edge_indices.reset_index(drop=True)], axis=0)
         vc = e.drop_duplicates(keep="last").index.value_counts()
         return self.subedges(vc.index[vc == 1].values)
-    
+
     def edge_associated_vertex_properties(self, prop_name, side=None):
         """
         The list of values of the specified node property associated with all edges. That is, for each edge
-        the value of the property is returned for the source and target nodes. 
+        the value of the property is returned for the source and target nodes.
         Args:
           prop_name: Name of the property to gather. Must be in obj.vertex_properties.
 
@@ -546,10 +546,10 @@ class ConnectivityMatrix(object):
         eavp = pd.concat(
             [col[self._edge_indices[_idx]].rename(_idx).reset_index(drop=True)
              for _idx in self._edge_indices.columns],
-             axis=1, copy=False
+             axis=1
         )
         return eavp
-    
+
     def matrix_(self, edge_property=None):
         """
         Representation of the network as a sparse.coo_matrix.
@@ -606,8 +606,8 @@ class ConnectivityMatrix(object):
 
         Args:
           prop_name (str): Must be in obj.vertex_properties. Name of the property based on which subnetworks
-          are to be sampled. 
-        
+          are to be sampled.
+
         Returns:
           _MatrixNodeIndexer associated with this object.
         """
@@ -621,31 +621,31 @@ class ConnectivityMatrix(object):
 
         Args:
           prop_name (str): Must be in obj.edge_properties or obj.vertex_properties.
-          Name of the property based on which subnetworks are to be sampled. 
+          Name of the property based on which subnetworks are to be sampled.
           side (optional, one of "row", "col): Relevant when prop_name is a vertex_property. If "row", then
           the specified vertex property of the source side of the connection is used. If "col", then the
           target side is used. If not provided, the combination of both is used.
-        
+
         Returns:
           _MatrixEdgeIndexer associated with this object.
         """
         if prop_name is None:
             prop_name = self._default_edge
         return _MatrixEdgeIndexer(self, prop_name, side=side)
-    
+
     def filter_with_function(self, filter_func, mask=None, vertex_properties=None, **kwargs):
         """
-        Apply an edge filtering function, returning a copy of the object with the same vertices, but only the 
+        Apply an edge filtering function, returning a copy of the object with the same vertices, but only the
         edges that pass the filtering function.
         For simple filtering functions (e.g. value of a single edge property below a given value) see .filter
         instead.
 
         Args:
           filter_func (function): The function defining the filter. Takes as input a pandas.DataFrame of edge properties
-          (one row per edge). Returns as output an iterable of the same length with boolean values: True indicates 
+          (one row per edge). Returns as output an iterable of the same length with boolean values: True indicates
           that an edge is kept, False that it should be discarded.
 
-          mask (optional): Defines a mask that determines which edges the filter_func should be applied to. 
+          mask (optional): Defines a mask that determines which edges the filter_func should be applied to.
           Filtering is only applied to edges where the associated
           value is True. (That means and edge passes if filter_func yields True OR mask yields False). However note
           that filter_func is only called on the edges that are not masked out, i.e. mask is applied _before_ the
@@ -654,17 +654,17 @@ class ConnectivityMatrix(object):
           a function with the same specs as filter_func.
 
           vertex_properties (optional): By default, the filtering function has access to a DataFrame of all the
-          edge properties in the object. This argument is an optional list of vertex properties that will be made 
+          edge properties in the object. This argument is an optional list of vertex properties that will be made
           available in addition, as described in .edge_associated_vertex_properties. The names of these properties
           will be the name of the original vertex property, followed by ":row" for the property value associated
           with the source vertex and ":col" for the property value associated with the target vertex.
-          
+
           Additional kwargs are forwarded as-is to the filtering_function.
           """
-        
+
         df = self.edges.reset_index(drop=True)
         if vertex_properties is not None:
-            df = pd.concat( [df] + 
+            df = pd.concat( [df] +
                 [self.edge_associated_vertex_properties(_prop).rename(columns={"row": _prop + ":row",
                                                                                "col": _prop + ":col"})
                  for _prop in vertex_properties], axis=1
@@ -678,7 +678,7 @@ class ConnectivityMatrix(object):
         passes_filter = np.ones(len(mask), dtype=bool)
         passes_filter[mask] = filter_func(df.loc[mask], **kwargs)
         return self.subedges(passes_filter)
-        
+
     def default(self, new_default_property, copy=True):
         """
         Set the default edge property to return. Used in obj.matrix, obj.dense_matrix, obj.array
@@ -689,7 +689,7 @@ class ConnectivityMatrix(object):
           copy (optional, default: True): See below
 
         Returns:
-          If copy is True, returns a copy of this network with the default property set. 
+          If copy is True, returns a copy of this network with the default property set.
           If copy is False, sets the default property of this network, then returns self.
         """
         assert new_default_property in self.edge_properties, "Edge property {0} unknown!".format(new_default_property)
@@ -700,12 +700,12 @@ class ConnectivityMatrix(object):
                                   edge_properties=self._edges,
                                   vertex_properties=self._vertex_properties, shape=self._shape,
                                   default_edge_property=new_default_property)
-    
+
     def compress(self, agg_funcs=None):
         """
         Returns a compressed version of this object. That is, assuming this object contains multiple edges
         between vertices, they are compressed to a single edge with an associated property called "count"
-        that specifies the number of edges in the original version. 
+        that specifies the number of edges in the original version.
         Other edge properties (beyond "count") are lost unless explicitly specified using the "agg_funcs"
         kwarg.
 
@@ -713,7 +713,7 @@ class ConnectivityMatrix(object):
           agg_funcs (optional, dict): Specifies which of the original edge properties to carry over to the
           compressed version and how to aggregate them into a single value.
           Keys of the dict are the names of the properties in the compressed version; values must be a tuple,
-          where the first entry is the name of the property in the original version and the second one 
+          where the first entry is the name of the property in the original version and the second one
           specifies the aggregation function. This is either a string naming a standard function (such as
           "mean") or a function taking a list as input and a single value as output. For details and which
           strings are valid, see pandas.groupby.apply.
@@ -734,7 +734,7 @@ class ConnectivityMatrix(object):
                 assert prop_name != "count", "'count' is a reserved property name!"
                 prop_col, prop_fun = prop_specs
                 agg_props.append(grp[prop_col].apply(prop_fun).rename(prop_name))
-        
+
         raw_edge_props = pd.concat(agg_props, axis=1)
         return ConnectivityMatrix(
             raw_edge_props.index.to_frame().reset_index(drop=True),
@@ -755,7 +755,7 @@ class ConnectivityMatrix(object):
         :param bluepy_obj: bluepysnap Simulation or Circuit object
         :param load_config: config dict for loading and filtering neurons from the circuit
         :param connectome: string that specifies the name of an EdgeCollection to load. Must
-        be in bluepy_obj.edges, or "local". If "local", then a recurrent connectome is 
+        be in bluepy_obj.edges, or "local". If "local", then a recurrent connectome is
         heuristically estimated. In that case it is recommended to specify a node_population
         to load in the load_config. The heuristics for guessing a "local" connectome are
         documented in conntility.circuit_models.circuit_connection_matrix.
@@ -771,7 +771,7 @@ class ConnectivityMatrix(object):
         else:
             circ = bluepy_obj
         load_config = _read_if_needed(load_config)
-        
+
         if connectome != LOCAL_CONNECTOME:
             if circ.edges[connectome].source.name != circ.edges[connectome].target.name:
                 if "source" not in load_config or "target" not in load_config:
@@ -790,7 +790,7 @@ class ConnectivityMatrix(object):
                 else:
                     mat = mat.tocoo()
                     edge_prop_df = pd.DataFrame({"data": mat.data})
-                    
+
                 edge_idx_df = pd.DataFrame({
                     "row": mat.row, "col": mat.col + mat.shape[0]
                 })
@@ -805,7 +805,7 @@ class ConnectivityMatrix(object):
         else:
             nodepop = load_config.get("loading", load_config).get("node_population", None)
             nrn = load_filter(circ, load_config, node_population=nodepop)
-        
+
         nrn = nrn.set_index(GID)
         mat = circuit_connection_matrix(circ, for_gids=nrn.index.values, connectome=connectome, **kwargs)
         if isinstance(mat, dict):
@@ -815,7 +815,7 @@ class ConnectivityMatrix(object):
         else:
             mat = mat.tocoo()
             edge_prop_df = pd.DataFrame({"data": mat.data})
-            
+
         edge_idx_df = pd.DataFrame({
             "row": mat.row, "col": mat.col
         })
@@ -834,7 +834,7 @@ class ConnectivityMatrix(object):
 
           sub_gids_post (optional): If provided, then the submatrix of connection from sub_gids to
           sub_gids_post is returned. Else square matrix of connectivity from sub_gids to sub_gids.
-        
+
         Returns:
           sparse.coo_matrix corresponding to the spacified submatrix.
         """
@@ -860,10 +860,10 @@ class ConnectivityMatrix(object):
     def subpopulation(self, subpop_ids):
         """
         Generate a ConnectivityMatrix object representing the specified subpopulation
-        
+
         Args:
           subpop_ids: List of nodes to return. Entries must be in obj.gids
-        
+
         Returns:
           ConnectivityMatrix representing the subpopulation
         """
@@ -877,22 +877,22 @@ class ConnectivityMatrix(object):
         out_indices = self._edge_indices.loc[vld.values]
         if len(out_indices) > 0: out_indices = out_indices.apply(lambda _x: subpop_lookup[_x].values, axis=0)
         out_vertices = self._vertex_properties.loc[subpop_ids]
-        
+
         return ConnectivityMatrix(out_indices,
                                   vertex_properties=out_vertices,
                                   edge_properties=out_edges, default_edge_property=self._default_edge,
                                   shape=(len(subpop_ids), len(subpop_ids)))
-    
+
     def reorder(self, property_name, order=None):
         """
         Change the order of vertices.
 
-        Args: 
+        Args:
           property_name (str): Name of a vertex property that is to be used to determined the new order.
           order (optional): A list that specifies values of property_name. The vertices of the returned
           object are reordered accordingly. If not specified, values will be sorted in increasing order.
 
-        Note: 
+        Note:
           - By specifying order, one can also generate a subpopulation by not listing every value.
           - There must not be duplicate values in order.
           - If there are duplicate values in the specified property, all vertices with that value are
@@ -908,25 +908,25 @@ class ConnectivityMatrix(object):
             idxp = self.vertices.set_index(property_name)[index_name]
             idxx = idxp[order]
         return self.subpopulation(idxx.values)
-    
+
     def slice(self, angle, position, thickness, columns_slice=["x", "z"], column_y="y"):
         """A ConnectivityMatrix object representing the subpopulation given by a slicing operation.
         First, a slice-specific coordinate system is defined, based on existing coordinates in the
         vertex properties of the object and a specified rotation. The population is then sliced in
-        the "depth" coordinate of those coordinates at the specified position, with the specified 
+        the "depth" coordinate of those coordinates at the specified position, with the specified
         thickness.
 
-        The slice-specific coordinates are as follows: 
+        The slice-specific coordinates are as follows:
           "slice_x" is given by applying the specified rotation angle to the coordinates in
           "columns_slice".
           "slice_y" is given by "column_y".
           "slice_depth" is orthogonal to "slice_x".
 
         In summary, angle and position can be randomly chosen within reasonable bounds to generate
-        different slices from the population. thickness should be chosed in accordance with the 
-        in-vitro experiment one is trying to emulate. column_y should be the coordinate one wants 
+        different slices from the population. thickness should be chosed in accordance with the
+        in-vitro experiment one is trying to emulate. column_y should be the coordinate one wants
         to preserve unchanged in the slice, e.g. cortical depth. columns_slice should be the other
-        two coordinates. 
+        two coordinates.
         """
         v = self._vertex_properties[columns_slice].values
         m = np.array([[np.cos(angle), -np.sin(angle)],
@@ -952,7 +952,7 @@ class ConnectivityMatrix(object):
         Args:
           n (int): Number of nodes to sample. Must be smaller than the length of this network (number of nodes).
 
-          mv_mn (list of ints): Mean values of a multivariate gaussian expressing sampling preference. 
+          mv_mn (list of ints): Mean values of a multivariate gaussian expressing sampling preference.
 
           mv_cv (numpy.array): Covariance matrix of a multivariate gaussian expressing sampling preference.
 
@@ -960,25 +960,25 @@ class ConnectivityMatrix(object):
 
           avoidance_range (float): Pairs of nodes below this distance will be avoided to be sampled together.
 
-          lim_seed (float): Maximum distance from the center (as a z-score!) of the population to sample the 
+          lim_seed (float): Maximum distance from the center (as a z-score!) of the population to sample the
           first node from.
 
           lim_neighborhood (float): Maximum distance from the rest of the sampled neurons (as a z-score!) to
           sample additional nodes from.
 
         Returns:
-          A ConnectivityMatrix representing a random subpopulation of the specified length. It is sampled as 
+          A ConnectivityMatrix representing a random subpopulation of the specified length. It is sampled as
           follows:
           The values of the node properties in columns_xy are interpreted as spatial locations associated with
-          each node. Note that any number of dimensions is supported, even > 2. mv_mn and mv_cv define a 
+          each node. Note that any number of dimensions is supported, even > 2. mv_mn and mv_cv define a
           multivariate gaussian in that coordinate system. Note that their lengths must be compatible with the
-          number of dimensions. Nodes are preferably sampled from locations close to already sampled nodes 
+          number of dimensions. Nodes are preferably sampled from locations close to already sampled nodes
           according to the spatial kernel codified by the gaussian.
           First a "seed" node is sampled randomly from the center of the population (lim_seed gives) the
           maximal distance from the center that the seed can be, as a z-score of spatial locations. Then
-          further nodes are sampled one after another according to the spatial bias provided. 
+          further nodes are sampled one after another according to the spatial bias provided.
           Additionally, the "avoidance_range" scales down probabilities for nodes at distances between 0 and
-          the specified value. 
+          the specified value.
         """
         nrn_slice = self._vertex_properties[columns_xy]
         avoidance_range = np.maximum(avoidance_range, 1E-4)  # To avoid division by zero
@@ -990,22 +990,22 @@ class ConnectivityMatrix(object):
 
         seed_nrn = vv.index[np.random.choice(idxx)]
         seed = nrn_slice.loc[seed_nrn]
-        
+
         zscored = ((nrn_slice - seed) / marginal_sd).abs()
         v_neighborhood = (zscored < lim_neighborhood).all(axis=1) & (zscored > 0.).any(axis=1)
         neighborhood = nrn_slice.loc[v_neighborhood]
         neurons = pd.concat([seed], axis=1).transpose()
-        
+
         other_idx = []
         while len(neurons) < n:
             delta = neighborhood.values.reshape((-1, 1, 2)) - neurons.values.reshape((1, -1, 2))
             avoidance = np.minimum(np.sqrt(np.sum(delta ** 2, axis=-1)) / avoidance_range, 1.)
             p_vec = 1E3 * p_dist.pdf(delta).reshape((-1, len(neurons))) * avoidance
             p_vec = np.prod(p_vec, axis=1)
-            
+
             p_vec = p_vec / p_vec.sum()
             new_idx = np.random.choice(len(p_vec), p=p_vec)
-            other_idx.append(new_idx) 
+            other_idx.append(new_idx)
             neurons = pd.concat([neurons, neighborhood.iloc[[new_idx]]], axis=0)
         return self.subpopulation(neurons.index)
 
@@ -1027,7 +1027,7 @@ class ConnectivityMatrix(object):
 
         return ConnectivityMatrix(rowcol["row"], rowcol["col"], vertex_properties=self._vertex_properties,
         edge_properties=out_edges, default_edge_property=self._default_edge, shape=self._shape)
-    
+
     def _active_in_transmission_response(self, eavp, spks_row, spks_col, max_delta_t):
         """Returns boolean array with an entry for each edge. True, if it is active in the transmission
         response graph for the given spiking activity.
@@ -1061,10 +1061,10 @@ class ConnectivityMatrix(object):
 
           max_delta_t (float): Maximum delay for a target node spiking to be considered caused by a source
           node spiking. Same unit as the spike times.
-        
+
         Returns:
           A ConnectivityGroup, i.e. a series of ConnectivityMatrix objects, where each represents a sub-
-          network of the same nodes, but only a subset of edges. Subset of edges is picked based on the 
+          network of the same nodes, but only a subset of edges. Subset of edges is picked based on the
           provided spiking activity as follows: An edge is considered active, if its source spiked in a
           given time window and its target spiked within "max_delta_t" of the source spike (even if that
           target spike is outside the time window!). The ConnectivityGroup contains one Matrix per time
@@ -1072,14 +1072,14 @@ class ConnectivityMatrix(object):
         """
         spks = spks.loc[np.isin(spks, self.gids)]
         t_wins = np.array(t_wins).reshape((-1, 2))
-        
+
         eavp = self.edge_associated_vertex_properties("gid")
         for t_start, t_end in t_wins:
             spks_row = spks[t_start:t_end]
             spks_col = spks[t_start:(t_end+max_delta_t)]
             v = self._active_in_transmission_response(eavp, spks_row, spks_col, max_delta_t)
             yield self.subedges(v)
-    
+
     def transmission_response_rates(self, spks, t_wins, max_delta_t, show_progress=False,
                                     normalize="mean"):
         """
@@ -1088,7 +1088,7 @@ class ConnectivityMatrix(object):
           spks, t_wins, max_delta_t: See obj.transmission_response(...)
           show_progress (optional, default False): Show progress bar while calculating.
           normalize (str): Must be one of ["mean", "sum", "pre", "expected_simple", "expected_strong"]
-        
+
         Returns:
           The number of edges active in the TR graphs, normalized as specified:
             "sum": No normalization.
@@ -1107,7 +1107,7 @@ class ConnectivityMatrix(object):
         if show_progress:
             from tqdm import tqdm
             gen = tqdm
-        
+
         eavp = self.edge_associated_vertex_properties("gid")
         p = []
         for t_start, t_end in gen(t_wins):
@@ -1137,9 +1137,9 @@ class ConnectivityMatrix(object):
 
         Args:
           ref: Determines the size of the random subsample. Can be an int or an object with length attribute.
-          
+
         Returns:
-          A numpy.array containing node identifiers of nodes in this network of specified size.  
+          A numpy.array containing node identifiers of nodes in this network of specified size.
         """
         all_gids = self._vertex_properties.index.values
         if hasattr(ref, "__len__"):
@@ -1158,20 +1158,20 @@ class ConnectivityMatrix(object):
 
         Args:
           ref: Determines the size of the random subsample. Can be an int or an object with length attribute.
-          
+
         Returns:
-          A ConnectivityMatrix representing a subnetwork of the specified number of nodes and all edges between them.  
+          A ConnectivityMatrix representing a subnetwork of the specified number of nodes and all edges between them.
         """
         return self.subpopulation(self.random_n_gids(ref))
-    
+
     def analyze(self, analysis_recipe):
         """
         Analyze this ConnectivityMatrix according to an analysis recipe.
 
         Args:
-          analysis_recipe: A dict, or the path to a .json file containing a dict. For the format, see 
+          analysis_recipe: A dict, or the path to a .json file containing a dict. For the format, see
           configuration_files.md
-        
+
         Returns:
           See configuration_files.md
         """
@@ -1181,7 +1181,7 @@ class ConnectivityMatrix(object):
         for analysis in analyses:
             res[analysis._name] = analysis.apply(self)
         return res
-    
+
     def partition(self, by_columns):
         """
         Split this network into subnetworks according to the values of a node property.
@@ -1199,7 +1199,7 @@ class ConnectivityMatrix(object):
         if len(by_columns) == 1:
             grp.index = pd.MultiIndex.from_frame(grp.index.to_frame())
         return ConnectivityGroup(grp)
-    
+
     def condense(self, by_columns, str_original="_idxx_in_original"):
         """
         Generate quotient matrices, i.e. connectivity at "reduced resolution".
@@ -1244,7 +1244,7 @@ class ConnectivityMatrix(object):
                              shape=(len(orig_vtx), len(orig_vtx)), default_edge_property="count",
                              vertex_properties=orig_vtx.sort_index().to_frame())
         return MC
-    
+
     def core_decomposition(self, str_core_label="_core_decomposition"):
         """
         Partition this network according its core decomposition, as defined in sknetwork.
@@ -1258,7 +1258,7 @@ class ConnectivityMatrix(object):
         ret = self.partition(str_core_label)
         self._vertex_properties.drop(str_core_label, axis=1, inplace=True)
         return ret
-    
+
     def __modularity_sknetwork__(self, with_respect_to, resolution_param=None):
         try:
             from sknetwork.clustering import get_modularity as modularity
@@ -1273,13 +1273,13 @@ class ConnectivityMatrix(object):
         idxx = pd.Series(range(len(idxx)), index=idxx)
         labels = rel_data.apply(lambda x: idxx.__getitem__(tuple(x)), axis=1)
         return modularity(self.matrix.tocsr(), labels.values, resolution=resolution_param)
-    
+
     def modularity(self, with_respect_to, resolution_param=None, implementation="sknetwork"):
         """
         Calculate the modularity of this network according to a given partition of its nodes.
 
         Args:
-          with_respect_to: A list of strings of node properties that define the partition to use. 
+          with_respect_to: A list of strings of node properties that define the partition to use.
           All values must be in obj.vertex_properties. A group of the partition is defined by a unique
           combination of values of the specified properties.
 
@@ -1288,10 +1288,10 @@ class ConnectivityMatrix(object):
           implementation (str): Which implementation of modularit to use. Default is "sknetwork", which will
           use sknetwork.clustering.get_modularity. Any other value will use a custom implementation that is
           part of this package.
-        
+
         Returns:
           If implementation is not "sknetwork", returns a pandas.Series of the contributions to modularity of
-          each subnetwork. The actual modularity is the sum of this. If "sknetwork", then only a single value is 
+          each subnetwork. The actual modularity is the sum of this. If "sknetwork", then only a single value is
           returned.
         """
         if implementation == "sknetwork": return self.__modularity_sknetwork__(with_respect_to, resolution_param)
@@ -1379,7 +1379,7 @@ class ConnectivityMatrix(object):
             data_grp.attrs["NEUROTOP_SHAPE"] = self._shape
             data_grp.attrs["NEUROTOP_DEFAULT_EDGE"] = self._default_edge
             data_grp.attrs["NEUROTOP_CLASS"] = "ConnectivityMatrix"
-    
+
     def to_networkx(self, add_vertex_properties=True, add_edge_properties=True):
         try:
             import networkx
@@ -1402,7 +1402,7 @@ class ConnectivityMatrix(object):
                 for _r in self.vertices.iterrows():
                     G.nodes[_r[0]].update(**_r[1].to_dict())
         return G
-    
+
     @classmethod
     def from_networkx(cls, G):
         try:
@@ -1471,7 +1471,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
             failure_count = (~check).sum()
             if failure_count > 0:
                 raise ValueError("On-off data is inconsistent for {0} edges!".format(failure_count))
-    
+
     @staticmethod
     def _build_on_off_index(struc_in):
         if isinstance(struc_in, dict):
@@ -1490,7 +1490,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
             return struc_in.sort_index()
         else:
             raise ValueError()
-    
+
     def __getitem__(self, idx):
         is_off = self._off.loc[:idx].drop_duplicates(keep="last")
         is_on = self._on.loc[:idx].drop_duplicates(keep="last")
@@ -1501,7 +1501,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         idxx = idxx.subtract(off_mx.subtract(on_mx, fill_value=-1), fill_value=0) >= 0
 
         return self.subedges(idxx.index[idxx["t"]].values)
-    
+
     def delta(self, idx_fr, idx_to):
         """
         Return the net changes occuring between two time steps.
@@ -1512,8 +1512,8 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
 
         Returns:
           A ConnectivityMatrix encoding the changes occuring between the time steps. That is, if an edge
-          is lost between the time steps, then the corresponding entry will be -1, if an edge if gained 
-          it will be 1, otherwise 0. 
+          is lost between the time steps, then the corresponding entry will be -1, if an edge if gained
+          it will be 1, otherwise 0.
           obj.delta(n, n) is always all zeros.
         """
         mxx = self._off.index.max() + 1
@@ -1532,8 +1532,8 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
 
         ret = self.subedges(delta_sign.index)
         ret.add_edge_property("delta", delta_sign.values)
-        return ret.default("delta", copy=False)
-    
+        return ret.default("delta")
+
     def skip(self, step, copy=True):
         """
         A version of this Matrix where the change occuring in a single time step is ignored.
@@ -1541,8 +1541,8 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         Args:
           step: Index of the time step to ignore.
 
-          copy (boolean, default True): If True, returns a copy. Else this object is modified. 
-        
+          copy (boolean, default True): If True, returns a copy. Else this object is modified.
+
         Returns:
           A StructurallyPlasticMatrix where the specified change is skipped (ignored).
         """
@@ -1556,7 +1556,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         self._off = new_off
         self._on = new_on
         return self.fix_consistency(copy=False)
-    
+
     def count_changes(self, count_off=True, count_on=True):
         """
         Counts how often all edges are changing, i.e. lost or gained over all time steps.
@@ -1580,7 +1580,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         counts["data"] = np.ones(len(self._edge_indices), dtype=bool)
         return ConnectivityMatrix(self._edge_indices, vertex_properties=self._vertex_properties,
                                   edge_properties=counts, default_edge_property="count", shape=self._shape)
-    
+
     def amount_active(self):
         """
         Count the number of time steps each edge is active in
@@ -1604,7 +1604,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         counts.loc[check.index, "count"] = check
         return ConnectivityMatrix(self._edge_indices, vertex_properties=self._vertex_properties,
                                   edge_properties=counts, default_edge_property="count", shape=self._shape)
-    
+
     def is_consistent(self):
         from scipy.spatial import distance
         def simple_diff(a, b):
@@ -1617,14 +1617,14 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
             return ~np.any(mat == 0) and\
                 np.all(np.triu(mat, 1) >= 0) and\
                 np.all(np.tril(mat) <= 0)
-        
+
         off_times = self._off.reset_index().groupby("edge").apply(lambda x: np.vstack(x["t"]))
         on_times = self._on.reset_index().groupby("edge").apply(lambda x: np.vstack(x["t"]))
         check = pd.concat([off_times, on_times], axis=1, keys=["toff", "ton"])
         check = check.apply(valid, axis=1)
         return check
 
-    def fix_consistency(self, copy=False):
+    def fix_consistency(self):
         is_on = set(range(len(self._edge_indices)))
         valid_on = pd.Series(np.ones(len(self._on), dtype=bool), index=self._on.index)
         valid_off = pd.Series(np.ones(len(self._off), dtype=bool), index=self._off.index)
@@ -1638,17 +1638,17 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
             if i in self._on.index:
                 valid_on[i] = ~np.isin(self._on[i], list(is_on))
                 is_on.update(self._on[i])
-        
+
         if copy:
             return StructurallyPlasticMatrix(self._edge_indices, vertex_properties=self._vertex_properties,
                                              edge_properties=self._edges, default_edge_property=self._default_edge,
                                              shape=self._shape,
                                              edge_off=self._off[valid_off],
                                              edge_on=self._on[valid_on], check_consistency=False)
-        
+
         self._on = self._on[valid_on]; self._off = self._off[valid_off]
         return self
-    
+
     @classmethod
     def from_matrix_stack(cls, mats, vertex_labels=None, vertex_properties=None,
                           default_edge_property="data"):
@@ -1659,7 +1659,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         ms = [sparse.coo_matrix(_m) for _m in mats]
         assert np.all([_m.shape == ms[0].shape for _m in ms])
         shape = ms[0].shape
-        
+
         def mat2df(mat):
             return pd.DataFrame({
                 "row": mat.row, "col": mat.col
@@ -1676,7 +1676,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
             tent_off = np.nonzero([_idx not in new_idx for _idx in curr_idx])[0]
             on_dict[t] = np.setdiff1d(tent_on, tent_off)
             off_dict[t] = np.setdiff1d(tent_off, tent_on)
-        
+
         edge_properties = pd.DataFrame({default_edge_property: np.ones(len(df), dtype=bool)})
         return cls(df, vertex_labels=vertex_labels, vertex_properties=vertex_properties,
                    edge_properties=edge_properties, default_edge_property=default_edge_property,
@@ -1714,7 +1714,7 @@ class TimeDependentMatrix(ConnectivityMatrix):
             else:
                 assert edge_properties.columns.dtype == float,\
                         "Time index must be of type Float64Index"
-                edge_properties = pd.concat([edge_properties], axis=1, copy=False, keys=["agg_fn"], names=["name"])
+                edge_properties = pd.concat([edge_properties], axis=1,  keys=["agg_fn"], names=["name"])
                 edge_properties.columns = edge_properties.columns.reorder_levels([1, 0])
         if default_edge_property is None:
             default_edge_property = edge_properties.columns.levels[1][0]
@@ -1730,7 +1730,7 @@ class TimeDependentMatrix(ConnectivityMatrix):
     @property
     def edges(self):
         return self._edges[self._time]
-    
+
     def at_time(self, new_time):
         # TODO: Add a copy=True kwarg that acts like in .default
         if new_time == -1:
@@ -1746,12 +1746,12 @@ class TimeDependentMatrix(ConnectivityMatrix):
         for agg_fn in delta.columns.to_numpy():
             self.add_edge_property(("delta", agg_fn), delta[agg_fn].to_numpy())
         return self
-    
+
     def default(self, new_default_property, copy=True):
         ret = super().default(new_default_property, copy=copy)
         if copy: ret._time = self._time
         return ret
-    
+
     @classmethod
     def from_report(cls, sim, report_cfg, load_cfg, presyn_mapping=None):
         """
@@ -1802,7 +1802,7 @@ class TimeDependentMatrix(ConnectivityMatrix):
             ts = edges.columns.levels[1]
             stat_edges = [pd.DataFrame.from_dict({t: Ms[agg_func].tocoo().data for t in ts})
                           for agg_func in agg_funcs]
-            stat_edges = pd.concat(stat_edges, axis=1, copy=False,  keys=agg_funcs)
+            stat_edges = pd.concat(stat_edges, axis=1,   keys=agg_funcs)
             stat_edges.columns.set_names(edges.columns.names, inplace=True)
             # map (non-reported, local) col idx to node ids and then back to (global) col idx
             lu_nr_node_idx = pd.Series(non_report_node_idx)
@@ -1842,15 +1842,15 @@ class ConnectivityGroup(object):
         elif len(args) == 2:
             self._mats = pd.Series(args[1], index=pd.MultiIndex.from_frame(args[0]))
         self._vertex_properties = pd.concat([x._vertex_properties for x in self._mats],
-                                            copy=False, axis=0).drop_duplicates()
-        
+                                            axis=0).drop_duplicates()
+
         for colname in self._vertex_properties.columns:
             assert not hasattr(self, colname), "{0} is a protected name and cannot be used as vertex property!".format(colname)
             setattr(self, colname, self._vertex_properties[colname].values)
 
         # TODO: calling it "gids" might be too BlueBrain-specific! Change name?
         self.gids = self._vertex_properties.index.values
-    
+
     @property
     def index(self):
         return self._mats.index
@@ -1858,15 +1858,15 @@ class ConnectivityGroup(object):
     @staticmethod
     def __loaditem__(args):
         return ConnectivityMatrix.from_h5(*args)
-    
+
     def __load_if_needed__(self, args):
         if isinstance(args, ConnectivityMatrix) or isinstance(args, pd.Series):
             return args
         return self.__loaditem__(args)
-    
+
     def __getitem__(self, key):
         return self.__load_if_needed__(self._mats[key])
-    
+
     @classmethod
     def from_bluepy(cls, bluepy_obj, load_config=None, connectome=LOCAL_CONNECTOME, **kwargs):
         """
@@ -1884,7 +1884,7 @@ class ConnectivityGroup(object):
             circ = bluepy_obj.circuit
         else:
             circ = bluepy_obj
-        
+
         if load_config is not None:
             nodepop = kwargs.get("node_population",
                                  load_config.get("loading", load_config).get("node_population", None))
@@ -1897,14 +1897,14 @@ class ConnectivityGroup(object):
         nrns = [nrn.loc[x].set_index(GID) for x in mats.keys()]
         con_obj = [ConnectivityMatrix(mat, vertex_properties=n) for n, mat in zip(nrns, mats)]
         return cls(pd.Series(con_obj, index=mats.index))
-    
+
     @classmethod
     def from_h5(cls, fn, group_name=None, prefix=None):
         """
-        Constructor from hdf5. Instantiates a ConnectivityGroup from an .h5 file that has been written by 
+        Constructor from hdf5. Instantiates a ConnectivityGroup from an .h5 file that has been written by
         ConnectivityGroup.to_h5().
         :param fn: A path to the file to be read the ConnectivityGrouip from.
-        :param group_name: (optional): The name of the group inside `fn' to read from. The same `group_name' 
+        :param group_name: (optional): The name of the group inside `fn' to read from. The same `group_name'
         that was used in the ConnectivityGroup.to_h5() call to write the file.
         :param prefix: (optional) The prefix inside `fn' to read from. The same `prefix' that was used in the
         ConnectivityGroup.to_h5() call to write the file.
@@ -1913,7 +1913,7 @@ class ConnectivityGroup(object):
             group_name = "conn_group"
         if prefix is None:
             prefix = "connectivity"
-        
+
         prefix = prefix + "/" + group_name
         dset_tbl = prefix + "/table"
 
@@ -1932,7 +1932,7 @@ class ConnectivityGroup(object):
                 return ConnectivityMatrix.from_h5(fn, name_read, prefix_read)
             except:
                 raise ValueError("Invalid TOC at {0} in {1}".format(prefix, fn))
-            
+
         ret = idx.apply(read_mat)
         return cls(ret)
 
@@ -1959,19 +1959,19 @@ class ConnectivityGroup(object):
         with h5py.File(fn, "a") as h5:
             data_grp = h5[full_prefix]
             data_grp.attrs["NEUROTOP_CLASS"] = "ConnectivityGroup"
-    
+
     def analyze(self, analysis_recipe):
         """
         Analyze this ConnectivityGroup according to an analysis recipe.
 
         Args:
-          analysis_recipe: A dict, or the path to a .json file containing a dict. For the format, see 
+          analysis_recipe: A dict, or the path to a .json file containing a dict. For the format, see
           configuration_files.md
-        
+
         Returns:
-          A concatenation of the output of analyzing all contained ConnectivityMatrices according to 
+          A concatenation of the output of analyzing all contained ConnectivityMatrices according to
           the recipe. Columns of the index of this object are added to the index of the output.
-          
+
           For details, see configuration_files.md
         """
         def assemble_output(lst_res):
@@ -1981,7 +1981,7 @@ class ConnectivityGroup(object):
             if isinstance(lst_res[0], pd.Series) or isinstance(lst_res[0], pd.DataFrame):
                 return pd.concat(lst_res, axis=0, names=self.index.names, keys=self.index.values)
             return pd.Series(lst_res, index=self.index.copy())
-            
+
         out_dict = {}
         for _idx in self.index:
             res = self[_idx].analyze(analysis_recipe)
