@@ -1,7 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 import os
+import importlib.util
 import numpy
 import pandas
+
+import pytest
 
 from conntility.analysis import library as test_module
 
@@ -11,6 +14,10 @@ TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 TEST_DATA_DIR = os.path.join(TEST_DIR, "data")
 
 
+@pytest.mark.skipif(
+    importlib.util.find_spec("mapalign") is None,
+    reason="mapalign not installed"
+)
 def test_embedding_simple():
     x = numpy.linspace(0, 1, TST_SZ)
     X, Y = numpy.meshgrid(x, x)
