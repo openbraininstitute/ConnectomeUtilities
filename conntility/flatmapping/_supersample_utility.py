@@ -87,7 +87,7 @@ class GeneralLinearTransform(object):
             [0, 1, 0],
             [self._M[1, 0], 0, self._M[1, 1]]
         ])
-        return GeneralLinearTransform(Mout) #Rotation.from_matrix(Mout)
+        return GeneralLinearTransform(Mout)  # Rotation.from_matrix(Mout)
 
 
 class Combination(object):

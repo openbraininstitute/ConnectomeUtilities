@@ -18,19 +18,20 @@ def ren_eel(M, clust_funcs, clust_func_update, kmax=None, modularity_kwargs={}):
     if isinstance(clust_funcs, list):
         clust_funcs = dict([("base_partition_{0}".format(i), _func)
                             for i, _func in enumerate(clust_funcs)])
-    if kmax is None: kmax = len(clust_funcs)
+    if kmax is None:
+        kmax = len(clust_funcs)
     assert kmax >= len(clust_funcs)
 
     func_names = list(clust_funcs.keys())
     for k, _func in clust_funcs.items():
         M.add_vertex_property(k, _func(M.matrix))
-    
+
     scoreboard = pandas.Series([
         M.modularity(k, **modularity_kwargs) for k in func_names
     ], index=func_names)
     cand_count = 0
 
-    while(True):
+    while (True):
         Mc = M.condense(func_names)
         Mc.add_vertex_property("new_partition", clust_func_update(Mc.matrix))
         cand_str = "candidate_{0}".format(cand_count)
@@ -38,9 +39,9 @@ def ren_eel(M, clust_funcs, clust_func_update, kmax=None, modularity_kwargs={}):
         M.add_vertex_property(cand_str, expand_partition(Mc))
 
         if numpy.any([(M.vertices[_k] == M.vertices[cand_str]).all()
-                    for _k in list(scoreboard.index)]):
+                      for _k in list(scoreboard.index)]):
             scoreboard.pop(scoreboard.idxmin())
-        else:                
+        else:
             cand_score = M.modularity(cand_str, **modularity_kwargs)
             if cand_score > scoreboard.min():
                 if len(scoreboard) >= kmax:
@@ -48,7 +49,7 @@ def ren_eel(M, clust_funcs, clust_func_update, kmax=None, modularity_kwargs={}):
                 scoreboard[cand_str] = cand_score
             else:
                 scoreboard.pop(scoreboard.idxmin())
-            
+
         print("""
         Iteration {0}:
             k = {1}
@@ -65,7 +66,3 @@ def ren_eel(M, clust_funcs, clust_func_update, kmax=None, modularity_kwargs={}):
         if len(scoreboard) == 1:
             break
     return scoreboard
-
-    
-                        
-

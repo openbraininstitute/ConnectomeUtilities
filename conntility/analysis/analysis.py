@@ -11,6 +11,7 @@ from ..plugins import import_module
 
 from ..circuit_models.neuron_groups.grouping_config import _resolve_includes
 
+
 def widen_by_index(level, dataframe):
     """Widen a dataframe by an index level."""
     import pandas as pd
@@ -44,7 +45,7 @@ class SingleMethodAnalysisFromSource:
     "analyze-connectivity": {
       "analyses": {
         "simplex_counts": {
-          "source": "/gpfs/bbp.cscs.ch/project/proj83/home/sood/analyses/manuscript/topological-analysis-subvolumes/topologists_connectome_analysis/analysis/simplex_counts.py",
+          "source": "/gpfs/bbp.cscs.ch/project/proj83/home/sood/analyses/manuscript/topological-analysis-subvolumes/topologists_connectome_analysis/analysis/simplex_counts.py",  # noqa: E501
           "args": [],
           "kwargs": {},
           "method": "simplex-counts",
@@ -86,11 +87,12 @@ class SingleMethodAnalysisFromSource:
         if not policy:
             return None
         return policy
-    
+
     @staticmethod
     def read_decorators(description):
         decorators = description.get("decorators", [])
-        if not isinstance(decorators, list): return [decorators]
+        if not isinstance(decorators, list):
+            return [decorators]
         return decorators
 
     def __init__(self, name, description, resolve_at=None):
@@ -129,7 +131,7 @@ class SingleMethodAnalysisFromSource:
         method = self.read_method(description)
 
         try:
-           run = getattr(source, method)
+            run = getattr(source, method)
         except AttributeError:
             pass
         else:
@@ -137,9 +139,9 @@ class SingleMethodAnalysisFromSource:
             return run
 
         if callable(source):
-            #TODO: inspect source
+            # TODO: inspect source
             return source
-        
+
         if not os.path.isfile(source):
             if self._root is not None and not os.path.isabs(source):
                 source = os.path.join(self._root, source)
@@ -147,7 +149,7 @@ class SingleMethodAnalysisFromSource:
         module, method = import_module(from_path=source, with_method=method)
         self._module = module
         return method
-    
+
     def decorate(self, analysis, lst_decorators, **kwargs):
         from . import analysis_decorators
         for decorator in lst_decorators:
@@ -158,7 +160,7 @@ class SingleMethodAnalysisFromSource:
                 if isinstance(args[i], str):
                     if args[i] in kwargs:
                         args.insert(i, kwargs[args.pop(i)])
-            
+
             if "analysis_arg" in decorator:
                 args = [
                     SingleMethodAnalysisFromSource(k, v, resolve_at=self._root)

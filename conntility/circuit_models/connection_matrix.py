@@ -24,8 +24,8 @@ def full_connection_matrix(sonata_fn, n_neurons=None, population="default",
     population (str): Sonata population to work with.
     edge_property (str, optional): Name of a synapse property to look up. Must exist in the connectome.
     If not provided, a boolean matrix is returned
-    agg_func (list, optional): Name of aggregation function to apply to the property of synapses belonging to the same connection.
-    Must be provided if edge_property is provided!
+    agg_func (list, optional): Name of aggregation function to apply to the property of synapses
+    belonging to the same connection. Must be provided if edge_property is provided!
     chunk (optional): Number of connections to read at the same time. Larger values
     will run generally faster, but with fewer updates of the progress bar.
 
@@ -33,7 +33,8 @@ def full_connection_matrix(sonata_fn, n_neurons=None, population="default",
     scipy.sparse matrix of connectivity
     """
     if edge_property is not None:
-        assert agg_func is not None, "Must also provide a list of functions to aggregate synapses belonging to the same connection!"
+        assert agg_func is not None, ("Must also provide a list of functions to aggregate "
+                                      "synapses belonging to the same connection!")
         return _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=n_neurons,
                                          population=population, shape=shape, chunk=chunk)
     h5 = h5py.File(sonata_fn, "r")['edges/%s' % population]
@@ -87,14 +88,15 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
         data = h5['0'][edge_property][splt_fr:splt_to]
         S = pandas.Series(data, index=pandas.MultiIndex.from_arrays([A, B])).groupby(level=[0, 1]).agg(agg_func)
         Si = S.index.to_frame()
-        row_indices.extend(Si[0].values); col_indices.extend(Si[1].values)
+        row_indices.extend(Si[0].values)
+        col_indices.extend(Si[1].values)
         for colname in S.columns:
             out_data.setdefault(colname, []).extend(S[colname].values)
 
     M = dict([
         (colname,
          sparse.coo_matrix((out_data[colname], (row_indices, col_indices)), shape=shape).tocsr())
-         for colname in out_data.keys()
+        for colname in out_data.keys()
     ])
     return M
 
@@ -200,13 +202,14 @@ def connection_matrix_for_gids(sonata_fn, gids, gids_post=None, population="defa
     if load_full:
         M = full_connection_matrix(sonata_fn, population=population, edge_property=edge_property,
                                    agg_func=agg_func, **kwargs)
-        if isinstance(M, dict): return dict([(k, v.tocsr()[numpy.ix_(gids, gids_post)])
-                                             for k, v in M.items()])
+        if isinstance(M, dict):
+            return dict([(k, v.tocsr()[numpy.ix_(gids, gids_post)])
+                         for k, v in M.items()])
         return M.tocsr()[numpy.ix_(gids, gids_post)]
     if edge_property is not None:
         assert agg_func is not None, "When looking up connection properties, must provide an agg_func, such as 'mean'"
         return _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_property, agg_func)
-    
+
     h5 = h5py.File(sonata_fn, "r")['edges/%s' % population]
     idx = numpy.array(gids)
     idx_post = numpy.array(gids_post)
@@ -235,12 +238,12 @@ def circuit_connection_matrix(circ, connectome=LOCAL_CONNECTOME, for_gids=None, 
                               edge_property=None, agg_func=None, chunk=50000000, load_full=False):
     """
     Returns a structural connection matrix, either for an entire circuit, or a subset of neurons.
-    For either local connectivity or any projection. 
+    For either local connectivity or any projection.
     Input:
     circ (bluepysnap.Circuit)
     connectome (str): Which connectome to return. Can be any EdgePopulation in circ.edges. If not provided,
                       it will be heuristically guessed using the value of node_population. The first EdgePopulation
-                      that has the specified node_population as both source and target will be used. If 
+                      that has the specified node_population as both source and target will be used. If
                       node_population is also not provided, then the largest non-virtual population will be used.
     for_gids: List of neuron gids to get the connectivity for.
     for_gids_post (optional): If given, then connectivity FROM for_gids TO for_gids_post will be returned.
@@ -264,12 +267,13 @@ def circuit_connection_matrix(circ, connectome=LOCAL_CONNECTOME, for_gids=None, 
     Returns:
     scipy.sparse matrix of connectivity (or a dict of those if a list is passed as `agg_func`)
     Note: By default, returns binary connectivity, i.e. only the presence or absence of at least one connection between
-    nodes. If you want to count connections, use the edge_property=... with any valid edge property and 
+    nodes. If you want to count connections, use the edge_property=... with any valid edge property and
     agg_func=len
     """
-    if connectome == LOCAL_CONNECTOME: 
+    if connectome == LOCAL_CONNECTOME:
         from .sonata_helpers import local_connectome_for, nonvirtual_node_population
-        if node_population is None: node_population = nonvirtual_node_population(circ)
+        if node_population is None:
+            node_population = nonvirtual_node_population(circ)
         connectome = local_connectome_for(circ, node_population)
     conn_file = find_sonata_connectome(circ, connectome)
     shape = get_connectome_shape(circ, connectome)
@@ -284,7 +288,7 @@ def circuit_connection_matrix(circ, connectome=LOCAL_CONNECTOME, for_gids=None, 
 
 def circuit_node_set_matrix(circ, for_node_set, for_node_set_post=None):
     """
-    Returns a structural connection matrix within or between defined node sets. That is, unlike 
+    Returns a structural connection matrix within or between defined node sets. That is, unlike
     circuit_connection_matrix this function can aggregate over multiple edge_populations and
     node_populations.
     """
@@ -292,13 +296,18 @@ def circuit_node_set_matrix(circ, for_node_set, for_node_set_post=None):
 
     if not isinstance(for_node_set, pandas.DataFrame):
         node_set_pre = resolve_node_set(circ, for_node_set).reset_index().set_index("population")
-    else: node_set_pre = for_node_set.reset_index().set_index("population")
-    if for_node_set_post is None: node_set_post = node_set_pre
+    else:
+        node_set_pre = for_node_set.reset_index().set_index("population")
+    if for_node_set_post is None:
+        node_set_post = node_set_pre
     elif not isinstance(for_node_set_post, pandas.DataFrame):
         node_set_post = resolve_node_set(circ, for_node_set_post).reset_index().set_index("population")
-    else: node_set_post = for_node_set_post.reset_index().set_index("population")
+    else:
+        node_set_post = for_node_set_post.reset_index().set_index("population")
 
-    row = []; col = []; data = []
+    row = []
+    col = []
+    data = []
     for edge_name, edges in circ.edges.items():
         rel_pre = edges.source.name in node_set_pre.index
         rel_post = edges.target.name in node_set_post.index
@@ -308,7 +317,7 @@ def circuit_node_set_matrix(circ, for_node_set, for_node_set_post=None):
                                            for_gids_post=node_set_post["node_ids"][edges.target.name]).tocoo()
             tgt_ids = node_set_post["index"][edges.target.name]
             src_ids = node_set_pre["index"][edges.source.name]
-            
+
             row.extend(src_ids.iloc[tM.row])
             col.extend(tgt_ids.iloc[tM.col])
             data.extend(tM.data)
@@ -329,9 +338,9 @@ def circuit_group_matrices(circ, neuron_groups, connectome=LOCAL_CONNECTOME, ext
 
     Input:
     circ (bluepysnap.Circuit)
-    neuron_groups (pandas.DataFrame): Frame of neuron grouping info. 
+    neuron_groups (pandas.DataFrame): Frame of neuron grouping info.
     See conntility.circuit_models.neuron_groups for information how a group is defined.
-    connectome (str, default: "local"): Which connectome to return. Can be either "local", returning the 
+    connectome (str, default: "local"): Which connectome to return. Can be either "local", returning the
     touch connectome or the name of any projection defined in the CircuitConfig.
     extract_full (bool, default: False): If set to True, this will first extract the _complete_ connection
     matrix between all neurons, then look up the relevant parts of that huge matrix. This can be faster,
@@ -359,20 +368,20 @@ def circuit_cross_group_matrices(circ, neuron_groups_pre, neuron_groups_post, co
                                  extract_full=False, column_gid=GID, **kwargs):
     """
     Returns the structural connectivity between (and within) specified groups of neurons.
-    That is, a number of matrices of structural connectivity between neurons in group A and B. 
+    That is, a number of matrices of structural connectivity between neurons in group A and B.
     This can be thought of as one big matrix, broken up into sub-matrices by group.
     For any EdgePopulation (specified as connectome=...).
 
-    Note: This function strongly assumes that the source and target of the EdgePopulation match the 
+    Note: This function strongly assumes that the source and target of the EdgePopulation match the
     nodes given in neuron_groups_pre and neuron_groups_post. No check is performed!
 
     Input:
     circ (bluepy.Circuit)
-    neuron_groups_pre (pandas.DataFrame): Frame of neuron grouping info. 
-    See conntility.circuit_models.neuron_groups for information how a group is defined. 
+    neuron_groups_pre (pandas.DataFrame): Frame of neuron grouping info.
+    See conntility.circuit_models.neuron_groups for information how a group is defined.
     These groups will be the groups _sending_ the connections that are considered.
-    neuron_groups_post (pandas.DataFrame): Frame of neuron grouping info. 
-    These groups will be the groups _receiving_ the connections that are considered. Can be the same as 
+    neuron_groups_post (pandas.DataFrame): Frame of neuron grouping info.
+    These groups will be the groups _receiving_ the connections that are considered. Can be the same as
     neuron_groups_pre.
     connectome (str, default: "local"): Which connectome to return. Can be any EdgePopulation in circ.edges.
     If "local", a local recurrent connectome will be heuristically guessed. In that case, it is best to
@@ -502,7 +511,7 @@ def circuit_matrix_between_groups(circ, neuron_groups, connectome,
                                   edge_population=None, extract_full=False, column_gid=GID):
     """
     Returns the number of structural connections between (and within) specified groups of neurons.
-    That is, single matrix of the _number_ of connections between group A and B.  
+    That is, single matrix of the _number_ of connections between group A and B.
     This can be thought of as a connectome with reduced resolution, as it is similar to
     a voxelized connectome. In fact, if the neuron_groups are based on binned x, y, z coordinates,
     this essentially returns a voxelized connectome!
@@ -515,7 +524,7 @@ def circuit_matrix_between_groups(circ, neuron_groups, connectome,
 
     Input:
     circ (bluepysnap.Circuit)
-    neuron_groups (pandas.DataFrame): Frame of neuron grouping info. 
+    neuron_groups (pandas.DataFrame): Frame of neuron grouping info.
     See conntility.circuit_models.neuron_groups for information how a group is defined.
     connectome (str): Which connectome to return. Must be in circ.edges.
     edge_population (str, optional): Name of the edge population in the connectome. Usually not needed to be specified.
@@ -526,13 +535,13 @@ def circuit_matrix_between_groups(circ, neuron_groups, connectome,
 
     Returns:
     pandas.DataFrame of connection counts. Index of the frame will be a MultiIndex with the columns
-    "Source node" and "Target node". Values of these entries will be strings generated from the 
+    "Source node" and "Target node". Values of these entries will be strings generated from the
     MultiIndex of neuron_groups. This is a bit awkward and will be improved in the future.
     Use .stack and .values to turn this output into a classic connection matrix (2d numpy array).
 
     Note: You could use this to count structural innervation strength from external innervation. But you would
     have to concatenate a group definition for the innervating fibers and a group definition for the circuit
-    neurons. 
+    neurons.
     """
     # TODO: Support "local" connectome?
     # TODO: Support non-recurrent connectome!

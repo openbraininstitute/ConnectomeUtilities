@@ -5,11 +5,14 @@ import numpy
 from ..circuit_models.neuron_groups import group_with_config, filter_with_config
 from ..circuit_models.neuron_groups.grouping_config import filter_config_to_dict
 
+
 def __submatrix_presyn__(matrix, nrn):
     return lambda x: (matrix[x.values], (nrn.iloc[x.values], nrn))
 
+
 def __submatrix_postsyn__(matrix, nrn):
     return lambda x: (matrix[:, x.values], (nrn, nrn.iloc[x.values]))
+
 
 def __submatrix_population__(matrix, nrn):
     return lambda x: (matrix[numpy.ix_(x.values, x.values)], nrn.iloc[x.values])
@@ -47,7 +50,7 @@ def _grouped_by_grouping_config(grp_cfg, submatrix_func):
     def decorator(analysis_function):
         def out_function(matrix, nrn_df, *args, **kwargs):
             nrn_df = pandas.concat([nrn_df, pandas.Series(range(len(nrn_df)),
-            index=nrn_df.index, name="__index__")], axis=1)
+                                                          index=nrn_df.index, name="__index__")], axis=1)
             grouped = group_with_config(nrn_df, grp_cfg)
             submatrices = grouped["__index__"].groupby(grouped.index.names).apply(submatrix_func(matrix, nrn_df))
             idxx = grouped.index.to_frame().drop_duplicates()
@@ -78,7 +81,7 @@ def pathways_by_grouping_config(grp_cfg):
     def decorator(analysis_function):
         def out_function(matrix, nrn_df, *args, **kwargs):
             nrn_df = pandas.concat([nrn_df, pandas.Series(range(len(nrn_df)),
-            index=nrn_df.index, name="__index__")], axis=1)
+                                                          index=nrn_df.index, name="__index__")], axis=1)
             grouped = group_with_config(nrn_df, grp_cfg)
 
             u_idx = grouped.index.to_frame().drop_duplicates()
@@ -145,17 +148,17 @@ def _grouped_by_filtering_config(lst_fltr_cfg, matrix_func):
         def out_function(matrix, nrn_df, *args, **kwargs):
             midx = __index_from_filter_configs(lst_fltr_cfg)
             nrn_df = pandas.concat([nrn_df, pandas.Series(range(len(nrn_df)),
-            index=nrn_df.index, name="__index__")], axis=1)
+                                                          index=nrn_df.index, name="__index__")], axis=1)
             groups = [filter_with_config(nrn_df, fltr_cfg) for fltr_cfg in lst_fltr_cfg]
 
             matrix_lo = matrix_func(matrix, nrn_df)
             ret = [analysis_function(
                 *matrix_lo(grp["__index__"]),
                 *args, **kwargs
-                ) for grp in groups]
+            ) for grp in groups]
             if numpy.all([isinstance(_res, pandas.Series) for _res in ret]):
                 ret = pandas.concat(ret, axis=0,
-                keys=map(tuple, midx.values), names=midx.columns.values.tolist())
+                                    keys=map(tuple, midx.values), names=midx.columns.values.tolist())
             else:
                 ret = pandas.Series(ret, index=pandas.MultiIndex.from_frame(midx))
             return ret
@@ -168,6 +171,7 @@ def for_all_neighborhoods():
     # E.g. where its value of a property has a given value.
     from ..analysis import neighborhood_indices
     from ..connectivity import GID
+
     def decorator(analysis_function):
         def out_function(matrix, nrn_df, *args, **kwargs):
             nb = neighborhood_indices(matrix)
@@ -190,6 +194,7 @@ def control_by_randomization(randomization, n_randomizations=10, only_mean=True,
     else:
         func = randomization
         rand_name = "randomized"
+
     def decorator(analysis_function):
         def out_function(matrix, nrn_df, *args, **kwargs):
             base_val = analysis_function(matrix, nrn_df, *args, **kwargs)
@@ -214,8 +219,8 @@ def control_by_randomization(randomization, n_randomizations=10, only_mean=True,
                 cmp_vals = numpy.nanmean(cmp_vals)
                 return pandas.Series([base_val, cmp_vals], index=["data", rand_name])
             midx = pandas.MultiIndex.from_tuples([("data", 0)] +
-                              [(rand_name, i) for i in range(len(cmp_vals))],
-                              names=["Control", "Instance"])
+                                                 [(rand_name, i) for i in range(len(cmp_vals))],
+                                                 names=["Control", "Instance"])
             return pandas.Series([base_val] + cmp_vals, index=midx)
         return out_function
     return decorator
@@ -223,7 +228,8 @@ def control_by_randomization(randomization, n_randomizations=10, only_mean=True,
 
 def control_by_random_sample(con_mat_obj, control_property, n_randomizations=10, sample_func=None, **rand_kwargs):
     from .. import ConnectivityMatrix
-    assert isinstance(con_mat_obj, ConnectivityMatrix), "This decorator must be used through ConnectivityMatrix.analyze!"
+    assert isinstance(con_mat_obj, ConnectivityMatrix), \
+        "This decorator must be used through ConnectivityMatrix.analyze!"
     ctrl_index = con_mat_obj.index(control_property)
     if sample_func is None:
         func = ctrl_index.random
@@ -237,7 +243,8 @@ def control_by_random_sample(con_mat_obj, control_property, n_randomizations=10,
             base_val = analysis_function(matrix, nrn_df, *args, **kwargs)
             cmp_vals = [
                 analysis_function(
-                    func(nrn_df[index_property], **rand_kwargs).matrix.tocsc(),  # TODO: Or maybe just give nrn_df without GID
+                    # TODO: Or maybe just give nrn_df without GID
+                    func(nrn_df[index_property], **rand_kwargs).matrix.tocsc(),
                     nrn_df, *args, **kwargs
                 ) for _ in range(n_randomizations)
             ]

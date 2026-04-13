@@ -20,8 +20,8 @@ def multi_scale_grouping(nrn, radii, properties=["ss_flat_x", "ss_flat_y"]):
     for i, radius in enumerate(radii):
         nrn = group_by_grid(nrn, properties, radius=radius,
                             prefix="level{0}-".format(i + 1)).reset_index()
-    #nrn = nrn.rename(columns=dict(zip(properties, ["level0-x", "level0-y"])))
-    #nrn["level0-subtarget"] = numpy.arange(len(nrn))
+    # nrn = nrn.rename(columns=dict(zip(properties, ["level0-x", "level0-y"])))
+    # nrn["level0-subtarget"] = numpy.arange(len(nrn))
 
     return nrn
 
@@ -43,7 +43,7 @@ class MultiScaleConnectome(object):
         self._extent = extent
         self._children = children
         self._props = kwargs
-    
+
     def skip_and_collapse(self, must_be_balanced=True):
         if not self.isleaf:
             if numpy.any([child.isleaf for child in self._children]):
@@ -56,24 +56,24 @@ class MultiScaleConnectome(object):
                     grandchildren.extend(child._children)
                 self._children = grandchildren
                 [child.skip_and_collapse(must_be_balanced=must_be_balanced)
-                for child in self._children]
+                 for child in self._children]
 
     @property
     def isleaf(self):
         return isinstance(self._children, numpy.ndarray)
-    
+
     @property
     def idx(self):
         if self.isleaf:
             return self._children
         return numpy.hstack([child.idx for child in self._children])
-    
+
     @property
     def depth(self):
         if self.isleaf:
             return 0
         return numpy.max([x.depth for x in self._children]) + 1
-    
+
     def count(self, at_reach=None):
         if at_reach == 0:
             return 1
@@ -82,7 +82,7 @@ class MultiScaleConnectome(object):
         if at_reach is None:
             return numpy.sum([x.count() for x in self._children])
         return numpy.sum([x.count(at_reach=at_reach - 1) for x in self._children])
-    
+
     def evaluate_at_depth(self, func, depth):
         selfdepth = self.depth
         assert selfdepth >= depth and depth >= 0
@@ -92,20 +92,23 @@ class MultiScaleConnectome(object):
         for child in self._children:
             ret.extend(child.evaluate_at_depth(func, depth))
         return ret
-    
+
     def nrn(self):
         if self.isleaf:
             return self._children
         return pandas.concat([x.nrn() for x in self._children])
-    
+
     @staticmethod
     def __nearest_neighbor_interpolation_for_nans__(nrn, cols_use=["x", "y", "z"],
                                                     add_noise=1.0):
         iv = numpy.any(numpy.isnan(nrn[COLS_NAN]), axis=1)
         K = KDTree(nrn[~iv][cols_use])
         D, idx = K.query(nrn[iv][cols_use])
-        print("Interpolation of NaN locations: {0} neurons; distance: {1}, {2}, {3} (min/mean/max)".format(len(D), D.min(), D.mean(), D.max()))
-        nrn.loc[iv, COLS_NAN] = nrn.loc[~iv, COLS_NAN].iloc[idx].values + numpy.random.rand(len(idx), len(COLS_NAN)) * add_noise - add_noise / 2
+        print(
+            "Interpolation of NaN locations: {0} neurons; distance: {1}, {2}, {3} "
+            "(min/mean/max)".format(len(D), D.min(), D.mean(), D.max()))
+        nrn.loc[iv, COLS_NAN] = nrn.loc[~iv, COLS_NAN].iloc[idx].values + \
+            numpy.random.rand(len(idx), len(COLS_NAN)) * add_noise - add_noise / 2
         return nrn
 
     @classmethod
@@ -126,7 +129,7 @@ class MultiScaleConnectome(object):
         data = nrn[["ss_flat_x", "ss_flat_y"]]
         bbox = list(zip(data.min(), data.max()))
         T = KDTree(nrn[["ss_flat_x", "ss_flat_y"]], leafsize=leafsize)
-        
+
         def _recursive(t, bbox, offset=0):
             if isinstance(t, T.innernode):
                 bbox_gr = [
@@ -148,7 +151,7 @@ class MultiScaleConnectome(object):
         ret._props["neurons"] = nrn
         ret._props["circuit"] = circ
         return ret
-    
+
     def __attach_matrices__(self, M, tgt_range=10):
         n_node = numpy.mean(self.evaluate_at_depth(lambda x: x.count(), 0))
         r_node = int(numpy.floor(numpy.log2(n_node)))
@@ -160,20 +163,22 @@ class MultiScaleConnectome(object):
         def assign_neuron_resolution_mat(mat, blck_lens, reinitialize=False):
             blck_off = numpy.hstack([0, numpy.cumsum(blck_lens)]).tolist()
             assert mat.shape[0] == blck_off[-1]
+
             def out_func(node):
-                fr = blck_off[0]; to = blck_off[1]
+                fr = blck_off[0]
+                to = blck_off[1]
                 blck_off.pop(0)
                 node._props["matrix"] = mat[numpy.ix_(range(fr, to), range(fr, to))]
                 if reinitialize:
                     node._props["matrix"] = node._props["matrix"].tocoo().tocsr()
             return out_func
-        
+
         def node_locations_at_resolution(depth_resolution):
             def out_func(node):
                 res = node.evaluate_at_depth(lambda x: list(map(numpy.mean, x._extent)), depth_resolution)
                 return numpy.vstack(res)
             return out_func
-        
+
         def assign_results_to(func, name_str):
             def out_func(node):
                 node._props[name_str] = func(node)
@@ -194,8 +199,8 @@ class MultiScaleConnectome(object):
             lengths_at_sampling = self.evaluate_at_depth(lambda x: x.count(at_reach=tgt_range), tgt_range + curr_res)
             M = count_blocks_of_sparse_matrix(M, lengths_at_resolution)
             _ = self.evaluate_at_depth(assign_neuron_resolution_mat(M, lengths_at_sampling, reinitialize=True),
-                                                                    tgt_range + curr_res)
-        
+                                       tgt_range + curr_res)
+
     def __remove_unattached_nodes__(self):
         if not self.isleaf:
             children = []
@@ -233,7 +238,7 @@ class MultiScaleConnectome(object):
             M = M + Madd
         self.__attach_matrices__(M, tgt_range=tgt_range)
         self.__remove_unattached_nodes__()
-    
+
     def to_h5(self, fn, group="ms_matrix"):
         import h5py
         with h5py.File(fn, "w") as h5_file:
@@ -255,7 +260,7 @@ class MultiScaleConnectome(object):
                         child_ids.append(node_index + 1)
                         node_index = __recursive__(child, node_index + 1)
                 grp.attrs["child_ids"] = child_ids
-                
+
                 return node_index
             __recursive__(self, 0)
             root_grp_name = grp_pattern.format(0)

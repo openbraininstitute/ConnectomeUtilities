@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-import numpy, pandas
+import numpy
+import pandas
 
 LOCAL_CONNECTOME = "local"
 
@@ -12,12 +13,13 @@ def find_sonata_connectome(circ, connectome, return_sonata_file=True, assert_is_
     connectome (str): Name of the projection to look up. Use "local" for the default local (i.e. touch-based) connectome
     return_sonata_file (optional): If true, returns the path of the .h5 file. Else returns a bluepy.Connectome.
     """
-    if connectome == LOCAL_CONNECTOME: 
+    if connectome == LOCAL_CONNECTOME:
         connectome = local_connectome_for(circ, nonvirtual_node_population(circ))
-    
+
     if connectome in circ.edges:
         if assert_is_recurrent:
-            assert circ.edges[connectome].source.name == circ.edges[connectome].target.name, "Recurrent connectome required!"
+            assert circ.edges[connectome].source.name == circ.edges[connectome].target.name, \
+                "Recurrent connectome required!"
         if return_sonata_file:
             return circ.edges[connectome].h5_filepath
         return circ.edges[connectome]
@@ -26,7 +28,7 @@ def find_sonata_connectome(circ, connectome, return_sonata_file=True, assert_is_
 
 
 def get_connectome_shape(circ, connectome):
-    if connectome == LOCAL_CONNECTOME: 
+    if connectome == LOCAL_CONNECTOME:
         connectome = local_connectome_for(circ, nonvirtual_node_population(circ))
     if connectome in circ.edges:
         pop = circ.edges[connectome]

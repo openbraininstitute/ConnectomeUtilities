@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pandas as pd
 
+
 def import_module(from_path, with_method=None):
     """..."""
     path = Path(from_path)
@@ -44,12 +45,12 @@ def load_module_from_path(p):
     if not path.exists:
         raise FileNotFoundError(p.as_posix())
 
-    if  path.suffix != ".py":
+    if path.suffix != ".py":
         raise ValueError(f"Not a python file {path}!")
 
     spec = importlib.util.spec_from_file_location(path.stem, path)
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module) #
+    spec.loader.exec_module(module)
 
     return module
 

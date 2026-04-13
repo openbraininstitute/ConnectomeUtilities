@@ -40,32 +40,41 @@ def per_pixel_coordinate_transformation(fm, orient, from_system="global", to_sys
 
     per_pixel_negative_center = per_pixel.apply(lambda x: -numpy.mean(x.values, axis=0))
     global2localized = per_pixel_negative_center.apply(Translation)
-    if tgt_tf == (0, 1): return global2localized
-    if tgt_tf == (1, 0): return global2localized.apply(lambda x: x.inv())
+    if tgt_tf == (0, 1):
+        return global2localized
+    if tgt_tf == (1, 0):
+        return global2localized.apply(lambda x: x.inv())
 
     per_pixel_orient = per_pixel_negative_center.apply(lambda x: orient.lookup(-x))
     localized2rotated = per_pixel_orient.apply(lambda o_vec: Rotation.from_quat(numpy.hstack([o_vec[1:],
-                                                                                       o_vec[0:1]])).inv())
-    if tgt_tf == (1, 2): return localized2rotated
-    if tgt_tf == (2, 1): return localized2rotated.apply(lambda x: x.inv())
+                                                                                              o_vec[0:1]])).inv())
+    if tgt_tf == (1, 2):
+        return localized2rotated
+    if tgt_tf == (2, 1):
+        return localized2rotated.apply(lambda x: x.inv())
 
     global2rotated = global2localized.combine(localized2rotated, Combination)
-    if tgt_tf == (0, 2): return global2rotated
-    if tgt_tf == (2, 0): return global2rotated.apply(lambda x: x.inv())
+    if tgt_tf == (0, 2):
+        return global2rotated
+    if tgt_tf == (2, 0):
+        return global2rotated.apply(lambda x: x.inv())
 
     tf_to_local_flat = Projection([0, 2])
     global2rotflat = global2rotated.apply(lambda base_tf: Combination(base_tf, tf_to_local_flat))
-    if tgt_tf == (0, 3): return global2rotflat
-    if tgt_tf == (3, 0): return global2rotflat.apply(lambda x: x.inv())
+    if tgt_tf == (0, 3):
+        return global2rotflat
+    if tgt_tf == (3, 0):
+        return global2rotflat.apply(lambda x: x.inv())
 
     localized2rotflat = localized2rotated.apply(lambda base_tf: Combination(base_tf, tf_to_local_flat))
-    if tgt_tf == (1, 3): return localized2rotflat
+    if tgt_tf == (1, 3):
+        return localized2rotflat
 
     dfx, dfy = flatmap_pixel_gradient(vxl_frame)
     dfx_frame = per_pixel_negative_center.index.to_frame().apply(lambda x: dfx[x["f_x"], x["f_y"]].reshape((1, -1)),
-                                                            axis=1)
+                                                                 axis=1)
     dfy_frame = per_pixel_negative_center.index.to_frame().apply(lambda x: dfy[x["f_x"], x["f_y"]].reshape((1, -1)),
-                                                            axis=1)
+                                                                 axis=1)
     # Above gradient vectors are in "localized" space. Convert to rotated_flat
     dfx_frame = localized2rotflat.combine(dfx_frame, lambda a, b: a.apply(b))
     dfy_frame = localized2rotflat.combine(dfy_frame, lambda a, b: a.apply(b))
@@ -78,11 +87,16 @@ def per_pixel_coordinate_transformation(fm, orient, from_system="global", to_sys
     print("Rotation errors: min: {0}, median: {1}, mean: {2}, std: {3}, max: {4}".format(
         err.min(), err.median(), err.mean(), err.std(), err.max()
     ))
-    if tgt_tf == (3, 4): return rotflat2pixel
-    if tgt_tf == (4, 3): return rotflat2pixel.apply(lambda x: x.inv())
-    if tgt_tf == (2, 4): return rotflat2pixel.apply(lambda base_tf: Combination(tf_to_local_flat, base_tf))
-    if tgt_tf == (1, 4): return localized2rotflat.combine(rotflat2pixel, Combination)
-    if tgt_tf == (0, 4): return global2rotflat.combine(rotflat2pixel, Combination)
+    if tgt_tf == (3, 4):
+        return rotflat2pixel
+    if tgt_tf == (4, 3):
+        return rotflat2pixel.apply(lambda x: x.inv())
+    if tgt_tf == (2, 4):
+        return rotflat2pixel.apply(lambda base_tf: Combination(tf_to_local_flat, base_tf))
+    if tgt_tf == (1, 4):
+        return localized2rotflat.combine(rotflat2pixel, Combination)
+    if tgt_tf == (0, 4):
+        return global2rotflat.combine(rotflat2pixel, Combination)
 
     rot2pixel = rotflat2pixel.apply(lambda x: x.expand())
 
@@ -91,12 +105,18 @@ def per_pixel_coordinate_transformation(fm, orient, from_system="global", to_sys
     tl_to_depth = pp_rotated.apply(lambda locs: Translation(numpy.array([0, -numpy.max(locs[:, 1]), 0])))
     rot2pixel = rot2pixel.combine(tl_to_depth, Combination)
 
-    if tgt_tf == (2, 5): return rot2pixel
-    if tgt_tf == (5, 2): return rot2pixel.apply(lambda x: x.inv())
-    if tgt_tf == (1, 5): return localized2rotated.combine(rot2pixel, Combination)
-    if tgt_tf == (5, 1): return rot2pixel.combine(localized2rotated, lambda a, b: Combination(a.inv(), b.inv()))
-    if tgt_tf == (0, 5): return global2rotated.combine(rot2pixel, Combination)
-    if tgt_tf == (5, 0): return rot2pixel.combine(global2rotated, lambda a, b: Combination(a.inv(), b.inv()))
+    if tgt_tf == (2, 5):
+        return rot2pixel
+    if tgt_tf == (5, 2):
+        return rot2pixel.apply(lambda x: x.inv())
+    if tgt_tf == (1, 5):
+        return localized2rotated.combine(rot2pixel, Combination)
+    if tgt_tf == (5, 1):
+        return rot2pixel.combine(localized2rotated, lambda a, b: Combination(a.inv(), b.inv()))
+    if tgt_tf == (0, 5):
+        return global2rotated.combine(rot2pixel, Combination)
+    if tgt_tf == (5, 0):
+        return rot2pixel.combine(global2rotated, lambda a, b: Combination(a.inv(), b.inv()))
     raise ValueError("This should never happen!")
 
 
@@ -131,7 +151,7 @@ def supersample_flatmap(fm, orient, pixel_sz=34.0, include_depth=False):
 
 
 def supersampled_locations(df_in, columns_xyz, columns_uvw=None, columns_out=None,
-                           circ=None, fm=None, orient=None, pixel_sz=34.0,  #TODO: use DEFAULT_PIXEL_SZ
+                           circ=None, fm=None, orient=None, pixel_sz=34.0,  # TODO: use DEFAULT_PIXEL_SZ
                            column_index=None, include_depth=False):
     from ..circuit_models.neuron_groups.sonata_extensions import load_atlas_data
     if circ is None:

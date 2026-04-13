@@ -31,7 +31,7 @@ def input_innervation_from_matrix(spikes, matrix, gids_pre, t_win=None):
     spikes (pandas.Series): Input spikes as given by the input_spikes(sim) function
     matrix (scipy.sparse matrix): Connection matrix of the projection that the input
     spikes use.
-    gids_pre (list): List of the gids associated with each row (presynaptic id) of 
+    gids_pre (list): List of the gids associated with each row (presynaptic id) of
     matrix.
     t_win (tuple or list of length 2): Time window of interest.
 
@@ -73,7 +73,8 @@ def _input_innervation(circ, s, source, target, t_win=None):
     if t_win is None:
         tgt["input_spike_count"] = res
     else:
-        for k, v in res.items(): tgt[k] = v
+        for k, v in res.items():
+            tgt[k] = v
     return tgt.set_index(["population", "node_ids"])
 
 
@@ -86,17 +87,18 @@ def input_innervation(sim, t_win=None, sum=True):
     provided, the entire simulation is considered as one single time bin.
     sim (optional, default=True): If True, sum up the contributions of different
     spike replay blocks. Else return them individually in a list.
-    
+
     Returns:
     innervation: A pandas.DataFrame with input spike counts in columns.
-    Indexed by: 
+    Indexed by:
        "population": name of the node population being innervated
        "node_ids": ids of the innervated neurons.
     Column names are either ["input_spike_count"] or the names of the time windows,
     if specified.
     """
     spks = input_spikes(sim)
-    if len(spks) == 0: return None
+    if len(spks) == 0:
+        return None
 
     res = _input_innervation(sim, *spks[0], t_win=t_win)
     if sum:

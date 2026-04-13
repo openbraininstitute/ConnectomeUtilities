@@ -35,16 +35,18 @@ def twod2rgb(flat_coords, x, y):
                     [y[0] - y[2], y[1] - y[2]]])
     Tinv = numpy.linalg.inv(T)
     l_0_1 = numpy.dot(Tinv, pts.transpose())
-    l = numpy.vstack([l_0_1, 1.0 - numpy.sum(l_0_1, axis=0, keepdims=True)]).transpose()
-    l[l < 0] = 0.0; l[l > 1] = 1.0
-    return l
+    bary = numpy.vstack([l_0_1, 1.0 - numpy.sum(l_0_1, axis=0, keepdims=True)]).transpose()
+    bary[bary < 0] = 0.0
+    bary[bary > 1] = 1.0
+    return bary
 
 
 def twod2mapping_coords(flat_coords, x, y):
     pts = flat_coords - numpy.array([[x[2], y[2]]])
     v0 = numpy.array([x[0], y[0]]) - numpy.array([x[2], y[2]])
     v1 = numpy.array([x[1], y[1]]) - numpy.array([x[2], y[2]])
-    v0 = v0 / numpy.linalg.norm(v0); v1 = v1 / numpy.linalg.norm(v1)
+    v0 = v0 / numpy.linalg.norm(v0)
+    v1 = v1 / numpy.linalg.norm(v1)
     x_out = numpy.dot(pts, v0.reshape((2, 1)))  # N x 2 * 2 x 1
     y_out = numpy.dot(pts, v1.reshape((2, 1)))
     return numpy.hstack([x_out, y_out])
@@ -67,7 +69,7 @@ def atlas_of_mapping_coordinates(recipe, circ=None, fm=None, orient=None, hier=N
             ann = load_atlas_data(circ, "brain_regions")
     elif circ is not None:
         print("Provided Circuit will be ignored since all of fm, orient, hier and ann were provided")
-    
+
     if supersample:
         fm = supersample_flatmap(fm, orient, pixel_sz=1.0)
     recipe = _loader(recipe)
@@ -90,8 +92,5 @@ def atlas_of_mapping_coordinates(recipe, circ=None, fm=None, orient=None, hier=N
         y = numpy.array(proj["mapping_coordinate_system"]["y"])
 
         out_raw[pop_mask] = twod2mapping_coords(pop_flat_coords, x, y)
-    
+
     return voxcell.VoxelData(out_raw, fm.voxel_dimensions, offset=fm.offset)
-
-
-
