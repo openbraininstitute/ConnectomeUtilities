@@ -203,7 +203,7 @@ class _MatrixEdgeIndexer(object):
         #  For an actual filtration. Take all values and sweep
         raise NotImplementedError()
     
-    def random_by_vertex_property_ids(self, ref, n_bins=None, is_edges=False):
+    def random_by_vertex_property_ids(self, ref, prop_name, n_bins=None, is_edges=False):
         """
         TODO: Instead of specifying a node property here, specify it when instantiating this object.
         Return a random subnetwork with the same nodes but only a subset of the edges. The subset is randomly generated 
@@ -239,9 +239,9 @@ class _MatrixEdgeIndexer(object):
                     ref = self._parent.subedges(ref)
                     print("Interpreting reference as edge ids!")
 
-        ref_edges = ref.edge_associated_vertex_properties(self._prop_name)
+        ref_edges = ref.edge_associated_vertex_properties(prop_name)
         if self._side is not None: ref_edges = ref_edges[self._side]
-        parent_edges = self._prop #self._parent.edge_associated_vertex_properties(prop_name)
+        parent_edges = self._parent.edge_associated_vertex_properties(prop_name)
 
         if n_bins is not None:
             mn, mx = np.min(parent_edges.values.flat), np.max(parent_edges.values.flat)
@@ -257,7 +257,7 @@ class _MatrixEdgeIndexer(object):
             out_edges.extend(np.random.choice(parent_edges[_idx].values, n, replace=False))
         return out_edges
     
-    def random_by_vertex_property(self, ref, n_bins=None):
+    def random_by_vertex_property(self, ref, prop_name, n_bins=None):
         """
         Generates a random subnetwork containing all nodes and a subset of edges. Based on matching
         the distribution of properties of source and target nodes to a reference subnetwork.
@@ -266,7 +266,7 @@ class _MatrixEdgeIndexer(object):
         Returns:
           A ConnectivityMatrix object representing the subnetwork.
         """
-        edge_ids = self.random_by_vertex_property_ids(ref, n_bins=n_bins)
+        edge_ids = self.random_by_vertex_property_ids(ref, prop_name, n_bins=n_bins)
         return self._parent.subedges(edge_ids)
 
 
