@@ -250,7 +250,7 @@ class _MatrixEdgeIndexer(object):
             parent_edges = parent_edges.apply(np.digitize, axis=0, bins=bins)
 
         ref_counts = ref_edges.value_counts()
-        parent_edges = parent_edges.reset_index().set_index(list(ref_counts.index.names))["index"]
+        parent_edges = parent_edges.reset_index().set_index(list(ref_counts.index.names))["index"].sort_index()
 
         out_edges = []
         for _idx, n in ref_counts.items():
