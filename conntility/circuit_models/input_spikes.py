@@ -57,7 +57,7 @@ def input_innervation_from_matrix(spikes, matrix, gids_pre, t_win=None):
         spikes = spikes[(spikes.index < t_win[1]) & (spikes.index >= t_win[0])]
     spk_count = spikes.value_counts()
     count_vec = numpy.zeros((len(gids_pre), 1))
-    nz_spikes = numpy.in1d(gids_pre, spk_count.index)
+    nz_spikes = numpy.isin(gids_pre, spk_count.index)
     count_vec[nz_spikes, 0] = spk_count[gids_pre[nz_spikes]]
 
     innervation = numpy.array(matrix.multiply(count_vec).sum(axis=0)).flatten()

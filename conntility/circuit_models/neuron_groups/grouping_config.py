@@ -82,7 +82,7 @@ def evaluate_filter_config(df_in, cfg_or_dict):
             continue
         col = df_in[rule["column"]]
         if "values" in rule:
-            valid = valid & numpy.in1d(col, rule["values"])
+            valid = valid & numpy.isin(col, rule["values"])
         elif "value" in rule:
             valid = valid & (col == rule["value"]).values
         elif "interval" in rule:
