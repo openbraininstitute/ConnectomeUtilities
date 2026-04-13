@@ -60,7 +60,7 @@ def to_polar_dataframe(positions):
 
 def to_polar_position(x, y):
     """..."""
-    return np.array([np.sqrt(x**2 + y**2),  np.arctan2(y, x)])
+    return np.array([np.sqrt(x**2 + y**2), np.arctan2(y, x)])
 
 
 def convert_polar(arg0, arg1=None):
@@ -82,6 +82,7 @@ def convert_polar(arg0, arg1=None):
 
 class Line:
     """Help to draw lines..."""
+
     def __init__(self, through, at_angle, graphic=None):
         """..."""
         self._origin = through
@@ -112,7 +113,7 @@ class Line:
 
         def resolve(x, y):
             """..."""
-            assert not (x is None and y is None),\
+            assert not (x is None and y is None), \
                 "At least one of x or y should have been non-null."
             if x is not None:
                 assert y is None
@@ -135,7 +136,7 @@ class Line:
     @classmethod
     def connecting(self, point, to_point, in_graphic=None):
         """..."""
-        origin  = (point + to_point) / 2.
+        origin = (point + to_point) / 2.
         dx, dy = to_point - point
         angle = np.arctan2(dy, dx)
         return Line(origin, angle, in_graphic)
@@ -151,6 +152,7 @@ def plot_segment(graphic, p0, p1, fmt=None, **kwargs):
 class TriTille:
     """A traingular tesselation.
     """
+
     def __init__(self, side, origin=None, angle=None):
         """
         side : length of the triangle side
@@ -159,7 +161,7 @@ class TriTille:
         """
         self._side = side
         self._origin = np.array([0., 0.]) if origin is None else origin
-        self._angle  = 0. if angle is None else angle
+        self._angle = 0. if angle is None else angle
 
         self._ratio = np.array([np.sqrt(3.), 1.])
 
@@ -210,7 +212,7 @@ class TriTille:
 
         u = relpos.x - relpos.y
         v = relpos.x + relpos.y
-        return Frame2D(u=u, v=v)#/ self._ratio
+        return Frame2D(u=u, v=v)  # / self._ratio
 
     def reverse_transform(self, uvs):
         """Transform (u, v) positions to (x, y).
@@ -265,9 +267,11 @@ class TriTille:
             """but only the portion that can be seen through the grid window.
             """
             line = Line(through, at_angle)
-            x0, y0 = ori; x1, y1 = ori + window
+            x0, y0 = ori
+            x1, y1 = ori + window
 
-            line_x0 = x0; line_y0 = line.y(x0)
+            line_x0 = x0
+            line_y0 = line.y(x0)
             if line_y0 < y0:
                 if line._slope <= 0:
                     return None
@@ -284,9 +288,10 @@ class TriTille:
                     return None
                 line_y0 = y1
 
-            line_x1 = x1; line_y1 = line.y(x1)
+            line_x1 = x1
+            line_y1 = line.y(x1)
             if line_y1 < y0:
-                if line._slope >=0:
+                if line._slope >= 0:
                     return None
                 line_x1 = line.x(y0)
                 if line_x1 < x0:
@@ -301,8 +306,8 @@ class TriTille:
                     return None
                 line_y1 = y1
 
-            #print("through", through, "at angle ", at_angle)
-            #print("\tsegment", (line_x0, line_y0), (line_x1, line_y1))
+            # print("through", through, "at angle ", at_angle)
+            # print("\tsegment", (line_x0, line_y0), (line_x1, line_y1))
 
             axes.plot([line_x0, line_x1], [line_y0, line_y1], fmt)
             return graphic
@@ -320,7 +325,7 @@ class TriTille:
             """y-axis in this TriTille's reference frame."""
             in_tritille_coords = P(i * self._side, 0.) * self._ratio / 2.
             in_grid_coords = self.untranslate(self.unrotate(in_tritille_coords))
-            return draw_line(in_grid_coords, self._angle + np.pi/2, fmt or "k-" if hexgrid else "k--")
+            return draw_line(in_grid_coords, self._angle + np.pi / 2, fmt or "k-" if hexgrid else "k--")
 
         def draw_vaxis(i, fmt="k-"):
             """..."""
@@ -346,13 +351,13 @@ class TriTille:
         vi_outside_grid = [i for i in range(-imax, imax)
                            if not draw_vaxis(i, **kwargs.get("draw_vaxis", {}))]
         print("Lines along the v-axis that didn't fit the window: %s / %s",
-                    len(vi_outside_grid), (2 * imax))
+              len(vi_outside_grid), (2 * imax))
         print("\t: %s", vi_outside_grid)
 
         ryi_outside_grid = [i for i in range(-imax, imax)
                             if not draw_relyaxis(i, **kwargs.get("draw_relyaxis", {}))]
         print("Lines along the TriTille's y-axis that didn't fit the window: %s / %s",
-                    len(ryi_outside_grid), (2 * imax))
+              len(ryi_outside_grid), (2 * imax))
         print("\t: %s", ryi_outside_grid)
 
         wmax = width + self._origin[0] + 1
@@ -361,13 +366,13 @@ class TriTille:
                           if not draw_uaxis(j, **kwargs.get("draw_uaxis", {}))]
 
         print("Lines along the u-axis that didn't fit the window: %s / %s",
-                    len(j_outside_grid), 2 * jmax)
+              len(j_outside_grid), 2 * jmax)
         print("\t: %s", j_outside_grid)
 
         rxj_outside_grid = [j for j in range(-jmax, jmax)
                             if not draw_relxaxis(j, **kwargs.get("draw_relxaxis", {}))]
         print("Lines along the TriTille's x-axis that didn't fit the window: %s / %s",
-                    len(rxj_outside_grid), (2 * jmax))
+              len(rxj_outside_grid), (2 * jmax))
         print("\t: %s", rxj_outside_grid)
         return graphic
 
@@ -399,7 +404,7 @@ class TriTille:
         ijs = triangular_bins
         N = ijs.shape[0]
 
-        n = (ijs["j"] -  ijs["i"]).mod(3)
+        n = (ijs["j"] - ijs["i"]).mod(3)
 
         is_mod1 = n == 1
         is_mod2 = n == 2
@@ -426,12 +431,12 @@ class TriTille:
         x0 = (ijs.i.values + ijs.j.values) * dx / 2
         scaled_x = (x - x0) / dx
 
-        centers = (ijs["j"] -  ijs["i"]).mod(3) == 0
+        centers = (ijs["j"] - ijs["i"]).mod(3) == 0
         correction = np.zeros(xys.shape[0])
         correction[scaled_x >= 0.5] = 1
         correction[~centers] = 0
 
-        ijs = Frame2D(i=(ijs.i+correction), j=(ijs.j+correction),
+        ijs = Frame2D(i=(ijs.i + correction), j=(ijs.j + correction),
                       dtype=int, index=ijs.index)
 
         hijs = self.map_to_hexagonal(triangular_bins=ijs)
@@ -446,14 +451,14 @@ class TriTille:
         n = d.mod(3)
         assert (n == 0).all()
 
-        r = pd.Series(d/3, dtype=int)
+        r = pd.Series(d / 3, dtype=int)
         odd = r.mod(2) == 1
 
         cval = hijs["j"].values - 3 * r / 2
         cval[odd] = cval - 0.5
         c = pd.Series(cval, dtype=int)
 
-        return Frame2D(col= c, row=r, dtype=int, index=hijs.index)
+        return Frame2D(col=c, row=r, dtype=int, index=hijs.index)
 
     def locate(self, bins):
         """Un bin the bins: (i, j) -> (x, y)
@@ -511,7 +516,7 @@ class TriTille:
             colors = pointcolor
 
         axes.scatter(positions["x"], positions["y"],
-                    c=colors, marker=pointmarker, s=pointmarkersize)
+                     c=colors, marker=pointmarker, s=pointmarkersize)
 
         if with_grid:
 
@@ -521,7 +526,7 @@ class TriTille:
 
         if annotate:
 
-            annotate = self.annotate(grid, using_column_row=(annotate=="colrow"))
+            annotate = self.annotate(grid, using_column_row=(annotate == "colrow"))
             for row in grid.assign(annotation=annotate).itertuples():
                 axes.annotate(row.annotation, (row.x - 6, row.y + 5),
                               fontsize=20)

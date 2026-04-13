@@ -15,7 +15,7 @@ def atlas_property(df_in, atlas, circ=None, column_names=None):
     least three columns with x, y and z coordinates. If it also contains u, v, w columns, they may be
     used to translate x, y, z locations into the flat mapped volume (required for fibers).
     atlas: Specifies the atlas to load properties from.
-    Must be one of: 
+    Must be one of:
       - Path to atlas (nrrd-format) file to use
       - A voxcell.VoxelData object
       - A string denoting the name of the atlas to be found within the Circuit's atlas directory
@@ -42,16 +42,17 @@ def atlas_property(df_in, atlas, circ=None, column_names=None):
             atlas = load_atlas_data(circ, atlas)
     else:
         assert isinstance(column_names, list) or isinstance(column_names, numpy.ndarray), "Must specify column names!"
-    
+
     xyz = df_in[XYZ].values
     atlas_data = atlas.lookup(xyz)
     shape = atlas_data.ndim
-    if shape > 1: shape = atlas_data.shape[1]
+    if shape > 1:
+        shape = atlas_data.shape[1]
 
     assert shape == len(column_names), "Size mismatch: Data has size {0}, column names {1}".format(
         shape, len(column_names)
     )
-    
+
     return pandas.DataFrame(atlas_data,
                             columns=column_names,
                             index=df_in.index)

@@ -31,7 +31,7 @@ def load_report(report, report_cfg, node_idx):
     print("Reading report for {0} node ids (between {1} and {2})".format(len(node_idx),
                                                                          np.min(node_idx), np.max(node_idx)))
     view = report.get(node_ids=(node_idx).tolist(), tstart=report_cfg["t_start"], tstop=report_cfg["t_end"],
-                      tstride=round(report_cfg["t_step"]/report.times[-1]))
+                      tstride=round(report_cfg["t_step"] / report.times[-1]))
     # print("Read data of shape {0}".format(view.data.shape))
     col_idx = view.ids
     col_idx = pd.MultiIndex.from_arrays(col_idx.transpose(), names=["post_gid", "local_syn_idx"])

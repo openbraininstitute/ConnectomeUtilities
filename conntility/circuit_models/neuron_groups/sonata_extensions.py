@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
-import os, pandas
+import os
+import pandas
 
 from .defaults import VIRTUAL_FIBERS_FN
 
@@ -25,27 +26,33 @@ def atlas_dir(circ):
         return circ.config["components"]["provenance"][STR_ATLAS_DIR]
     else:
         circ_base = circuit_base_dir(circ)
-        if circ_base is None: return None
+        if circ_base is None:
+            return None
         atlas = os.path.join(circ_base, ATLAS_LOC)
-        if os.path.exists(atlas): return atlas
+        if os.path.exists(atlas):
+            return atlas
     return None
+
 
 def load_atlas_data(circ, atlas_name):
     import voxcell
 
     atlas = atlas_dir(circ)
-    if atlas is None: raise RuntimeError("No atlas directory found!")
+    if atlas is None:
+        raise RuntimeError("No atlas directory found!")
     atlas_fn = os.path.join(atlas, atlas_name)
     if os.path.splitext(atlas_fn)[1] != ".nrrd":
         atlas_fn = atlas_fn + ".nrrd"
-    
+
     return voxcell.VoxelData.load_nrrd(atlas_fn)
+
 
 def load_atlas_hierarchy(circ):
     import voxcell
 
     atlas = atlas_dir(circ)
-    if atlas is None: raise RuntimeError("No atlas directory found!")
+    if atlas is None:
+        raise RuntimeError("No atlas directory found!")
     hier_fn = os.path.join(atlas, HIERARCHY_FN)
     return voxcell.RegionMap.load_json(hier_fn)
 
@@ -57,7 +64,7 @@ def simulation_conditions(sim):
     """
     from os import path
     import json
-    
+
     sim_path = sim._config._config_dir
     sim_json = sim_path + "sim_conditions.json"
     if not path.isfile(sim_json):

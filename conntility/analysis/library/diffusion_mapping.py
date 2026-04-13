@@ -16,10 +16,10 @@ def similarity_matrix(C):
     if issparse(C):
         C = C.tocsr()
         normalize_vals = numpy.array(numpy.sqrt(C.multiply(C).sum(axis=1))).flatten()
-        for i, v in enumerate(normalize_vals): # Normalize connectivity
-            C.data[C.indptr[i]:C.indptr[i+1]] = C.data[C.indptr[i]:C.indptr[i+1]] / v
-        C = (C * C.transpose()).tocoo() # Similarity
-        # TODO: After this, C might no longer really have a sparse structure. Might be better to 
+        for i, v in enumerate(normalize_vals):  # Normalize connectivity
+            C.data[C.indptr[i]:C.indptr[i + 1]] = C.data[C.indptr[i]:C.indptr[i + 1]] / v
+        C = (C * C.transpose()).tocoo()  # Similarity
+        # TODO: After this, C might no longer really have a sparse structure. Might be better to
         # cast .todense() and continue the non-sparse case from here.
         nrm = numpy.array(C.sum(axis=1)).flatten()
         chunks = numpy.arange(0, C.nnz + chunk_size, chunk_size)
@@ -33,13 +33,13 @@ def similarity_matrix(C):
             C = C.tocsc()
     else:
         normalize_vals = numpy.linalg.norm(C, axis=1, keepdims=True)
-        normalize_vals[normalize_vals == 0] = 1E-9 # In case it's zero
-        C = C / normalize_vals # Normalize connectivity
-        C = numpy.dot(C, C.transpose()) # Similarity
+        normalize_vals[normalize_vals == 0] = 1E-9  # In case it's zero
+        C = C / normalize_vals  # Normalize connectivity
+        C = numpy.dot(C, C.transpose())  # Similarity
         cs_sum = C.sum(axis=1, keepdims=True)  # L x 1, zero for zero connected voxels
         cs_sum[cs_sum == 0] = 1E-9  # In case it's zero
         cs_sum_ratios = numpy.hstack([cs_sum / _x for _x in cs_sum[:, 0]])
-        C = (C / cs_sum) * numpy.sqrt(cs_sum_ratios) # Normalize similarity
+        C = (C / cs_sum) * numpy.sqrt(cs_sum_ratios)  # Normalize similarity
     return C
 
 
@@ -63,4 +63,3 @@ def embed_pathway(C, diffusion_time=1, n_components=3):
                                                                      n_components=n_components)
     print("...done!")
     return S_norm, embed_coords, embed_res
-

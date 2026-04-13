@@ -46,7 +46,7 @@ def load_neurons(circ, properties, base_target=None, node_population=None, **kwa
     return neurons
 
 
-def load_source_locations(circ, properties, projection_name, 
+def load_source_locations(circ, properties, projection_name,
                           base_target=None, **kwargs):
     """
     Loads anatomical information about source nodes of a connectome.
@@ -66,7 +66,8 @@ def load_source_locations(circ, properties, projection_name,
     return load_neurons(circ, properties, base_target=base_target,
                         node_population=nodepop, **kwargs)
 
-def load_target_locations(circ, properties, projection_name, 
+
+def load_target_locations(circ, properties, projection_name,
                           base_target=None, **kwargs):
     """
     Loads anatomical information about target nodes of a connectome.

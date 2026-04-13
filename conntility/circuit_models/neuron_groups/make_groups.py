@@ -6,6 +6,7 @@ import pandas
 from .tessellate import TriTille
 from .defaults import GID
 
+
 def group_by_properties(df_in, lst_props, prefix="idx-", replace=True):
     """
     Defines a group of neurons by their values of a list of specified properties.
@@ -24,7 +25,7 @@ def group_by_properties(df_in, lst_props, prefix="idx-", replace=True):
     additional columns to it
 
     Return:
-    A copy of df_in with updated MultiIndex. The index defines the groups of neurons, 
+    A copy of df_in with updated MultiIndex. The index defines the groups of neurons,
     i.e. neurons / fibers with the same index are assumed to be part of the same group.
     If replace=True, a new index is created; otherwise columns are added to any existing
     index.
@@ -60,7 +61,7 @@ def group_by_binned_properties(df_in, lst_props, bins, prefix="binned-", replace
     additional columns to it
 
     Return:
-    A copy of df_in with updated MultiIndex. The index defines the groups of neurons, 
+    A copy of df_in with updated MultiIndex. The index defines the groups of neurons,
     i.e. neurons / fibers with the same index are assumed to be part of the same group.
     If replace=True, a new index is created; otherwise columns are added to any existing
     index.
@@ -96,7 +97,7 @@ def group_by_grid(df_in, lst_props, radius, shape="hexagonally", prefix="grid-",
     One row per neuron / fiber, one column per property.
     lst_props (list-like): List of columns holding the coordinates to use for grouping.
     Must have length 2, i.e. this only works for two-dimensional grids!
-    radius (float): Defines the resolution of the grid. In the same units as the 
+    radius (float): Defines the resolution of the grid. In the same units as the
     coordinates given.
     shape (str, default: hexagonally): Defines the shape of the grid. Must one one of:
        - rhombically
@@ -109,7 +110,7 @@ def group_by_grid(df_in, lst_props, radius, shape="hexagonally", prefix="grid-",
     additional columns to it
 
     Return:
-    A copy of df_in with updated MultiIndex. The index defines the groups of neurons, 
+    A copy of df_in with updated MultiIndex. The index defines the groups of neurons,
     i.e. neurons / fibers with the same index are assumed to be part of the same group.
     If replace=True, a new index is created; otherwise columns are added to any existing
     index.

@@ -20,7 +20,7 @@ def supersampled_locations_wrapper(df_in, circ=None, fm=None, orient=None, pixel
     orient (str, optional): Path to orientation volume to use
     circ (bluepysnap.Circuit, optional): Can be provided instead of fm and orient. In that case flatmap and
     orientation are loaded from Circuit.atlas
-    pixel_sz (float): Assumed approximate size in um of a single flatmap pixel. If set to None, an 
+    pixel_sz (float): Assumed approximate size in um of a single flatmap pixel. If set to None, an
     approximate value will be estimated
 
     Returns:
@@ -67,7 +67,7 @@ AVAILABLE_EXTRAS = {
 
 def add_extra_properties(df_in, circ, lst_properties, fm=None):
     """
-    Adds additional properties (like flat loactions) to a DataFrame holding neuron or fiber information. 
+    Adds additional properties (like flat loactions) to a DataFrame holding neuron or fiber information.
     List of available properties:
     flat_x: Flat mapped x coordinate (pixel resolution)
     flat_y: Flat mapped y coordinate (pixel resolution)

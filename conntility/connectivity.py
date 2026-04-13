@@ -21,6 +21,7 @@ class _MatrixNodeIndexer(object):
     A helper class used to sample sub-networks of a ConnectivityMatrix.
     Instantiate using ConnectivityMatrix.index.
     """
+
     def __init__(self, parent, prop_name):
         self._parent = parent
         self._prop = parent._vertex_properties[prop_name]
@@ -88,7 +89,7 @@ class _MatrixNodeIndexer(object):
         assert len(hist == len(value_bins[1:-1]))  # `digitize` returns values below and above the spec. bin_edges
         sample_gids = []
         for i in range(n_bins):
-            idx = np.where(value_bins == i+1)[0]
+            idx = np.where(value_bins == i + 1)[0]
             assert idx.shape[0] >= hist[i], "Not enough neurons at this depths to sample from"
             sample_gids.extend(np.random.choice(all_gids[idx], hist[i], replace=False).tolist())
         return sample_gids
@@ -134,6 +135,7 @@ class _MatrixEdgeIndexer(object):
     A helper class used to sample filtered versions of a network, i.e. same set of nodes, but a subset of edges.
     Instantiate using ConnectivityMatrix.filter.
     """
+
     def __init__(self, parent, prop_name, side=None):
         # TODO: Enable using an 'edge-associated-node-property' as well.
         self._parent = parent
@@ -197,8 +199,8 @@ class _MatrixEdgeIndexer(object):
 
     def full_sweep(self, direction='decreasing'):
         """
-        Return ConnectivityGroup representing a filtration with successively decreasing or increasing threshold values for
-        the indexed property.
+        Return ConnectivityGroup representing a filtration with successively decreasing
+        or increasing threshold values for the indexed property.
         """
         #  For an actual filtration. Take all values and sweep
         raise NotImplementedError()
@@ -206,10 +208,10 @@ class _MatrixEdgeIndexer(object):
     def random_by_vertex_property_ids(self, ref, prop_name, n_bins=None, is_edges=False):
         """
         TODO: Instead of specifying a node property here, specify it when instantiating this object.
-        Return a random subnetwork with the same nodes but only a subset of the edges. The subset is randomly generated
-        based on a reference.
-        The returned subnetwork will match the reference in terms of the distributions of the specified node property for
-        source and target nodes of edges.
+        Return a random subnetwork with the same nodes but only a subset of the edges.
+        The subset is randomly generated based on a reference.
+        The returned subnetwork will match the reference in terms of the distributions
+        of the specified node property for source and target nodes of edges.
 
         Args:
           ref: A reference to match. Must represent a sub-network of the base network that contains either all nodes and
@@ -240,7 +242,8 @@ class _MatrixEdgeIndexer(object):
                     print("Interpreting reference as edge ids!")
 
         ref_edges = ref.edge_associated_vertex_properties(prop_name)
-        if self._side is not None: ref_edges = ref_edges[self._side]
+        if self._side is not None:
+            ref_edges = ref_edges[self._side]
         parent_edges = self._parent.edge_associated_vertex_properties(prop_name)
 
         if n_bins is not None:
@@ -292,7 +295,8 @@ class _MatrixNeighborhoodIndexer(object):
           center_first (optional, default: True): If True, the arguments of "pre" and/or "post" will be
           listed first in the returned subnetwork. Otherwise, the ordering of the base network is preserved.
         """
-        if pre is None and post is None: raise ValueError("Insufficient number of arguments!")
+        if pre is None and post is None:
+            raise ValueError("Insufficient number of arguments!")
 
         indexer = self._parent._edge_indices.reset_index()
         idxx = set()
@@ -332,7 +336,8 @@ class _MatrixNeighborhoodIndexer(object):
             if not hasattr(post, "__iter__"):
                 return self.get_single(pre, post, center_first=center_first)
             pre = [pre for _ in post]
-        if not hasattr(post, "__iter__"): post = [post for _ in pre]
+        if not hasattr(post, "__iter__"):
+            post = [post for _ in pre]
         assert len(pre) == len(post), "Argument mismatch!"
         mats = [self.get_single(_pre, _post, center_first=center_first) for _pre, _post in zip(pre, post)]
         df = pd.DataFrame({"center_pre": pre, "center_post": post})
@@ -344,6 +349,7 @@ class _MatrixNeighborhoodIndexer(object):
 
 class ConnectivityMatrix(object):
     """Class to get, save, load and hold a connections matrix and generate submatrices from it"""
+
     def __init__(self, *args, vertex_labels=None, vertex_properties=None,
                  edge_properties=None, default_edge_property="data", shape=None):
         """Not too intuitive init - please see `from_bluepy()` below"""
@@ -358,8 +364,10 @@ class ConnectivityMatrix(object):
             self._edges = pd.DataFrame({
                 'data': m.data
             })
-            if shape is None: shape = m.shape
-            else: assert shape == m.shape
+            if shape is None:
+                shape = m.shape
+            else:
+                assert shape == m.shape
             self._edge_indices = pd.DataFrame({
                 "row": m.row,
                 "col": m.col
@@ -443,7 +451,8 @@ class ConnectivityMatrix(object):
             else:
                 new_values = sparse.coo_matrix(new_values)
             # TODO: Reorder data instead of throwing exception
-            assert np.all(new_values.row == self._edge_indices["row"]) and np.all(new_values.col == self._edge_indices["col"])
+            assert np.all(new_values.row == self._edge_indices["row"]) and np.all(
+                new_values.col == self._edge_indices["col"])
             self._edges[new_label] = new_values.data
         else:
             if hasattr(new_values, "values"):
@@ -523,7 +532,8 @@ class ConnectivityMatrix(object):
         """
         Drop all edges that are note reciprocal. Not available for multigraphs.
         """
-        assert not self.is_multigraph, "Function not yet available for multigraphs. Use .compress() to get a non-multigraph!"
+        assert not self.is_multigraph, ("Function not yet available for multigraphs. "
+                                        "Use .compress() to get a non-multigraph!")
         e_rv = self._edge_indices.reset_index(drop=True).rename(columns={"row": "col", "col": "row"})[["row", "col"]]
 
         e = pd.concat([e_rv, self._edge_indices.reset_index(drop=True)], axis=0)
@@ -540,13 +550,16 @@ class ConnectivityMatrix(object):
         Returns:
           pandas.DataFrame with the values of the property for source and target node in the columns.
         """
-        assert (prop_name in self.vertex_properties) or (prop_name == "gids"), "{0} is not a vertex property: {1}".format(prop_name, self.vertex_properties)
-        if prop_name == "gids": col = pd.Series(self.gids)
-        else: col = self.vertices[prop_name]
+        assert (prop_name in self.vertex_properties) or (prop_name == "gids"), \
+            "{0} is not a vertex property: {1}".format(prop_name, self.vertex_properties)
+        if prop_name == "gids":
+            col = pd.Series(self.gids)
+        else:
+            col = self.vertices[prop_name]
         eavp = pd.concat(
             [col[self._edge_indices[_idx]].rename(_idx).reset_index(drop=True)
              for _idx in self._edge_indices.columns],
-             axis=1
+            axis=1
         )
         return eavp
 
@@ -664,11 +677,11 @@ class ConnectivityMatrix(object):
 
         df = self.edges.reset_index(drop=True)
         if vertex_properties is not None:
-            df = pd.concat( [df] +
-                [self.edge_associated_vertex_properties(_prop).rename(columns={"row": _prop + ":row",
-                                                                               "col": _prop + ":col"})
-                 for _prop in vertex_properties], axis=1
-                 )
+            df = pd.concat([df] +
+                           [self.edge_associated_vertex_properties(_prop).rename(columns={"row": _prop + ":row",
+                                                                                          "col": _prop + ":col"})
+                            for _prop in vertex_properties], axis=1
+                           )
         if mask is None:
             mask = np.ones(len(df), dtype=bool)
         elif hasattr(mask, "__call__"):
@@ -697,9 +710,9 @@ class ConnectivityMatrix(object):
             self._default_edge = new_default_property
             return self
         return self.__class__(self._edge_indices["row"], self._edge_indices["col"],
-                                  edge_properties=self._edges,
-                                  vertex_properties=self._vertex_properties, shape=self._shape,
-                                  default_edge_property=new_default_property)
+                              edge_properties=self._edges,
+                              vertex_properties=self._vertex_properties, shape=self._shape,
+                              default_edge_property=new_default_property)
 
     def compress(self, agg_funcs=None):
         """
@@ -764,7 +777,7 @@ class ConnectivityMatrix(object):
         from .circuit_models.neuron_groups import load_filter
         from .circuit_models import circuit_connection_matrix
         from .circuit_models.neuron_groups.grouping_config import _read_if_needed
-        #TODO: Support lookup using circuit_node_set_matrix!
+        # TODO: Support lookup using circuit_node_set_matrix!
 
         if hasattr(bluepy_obj, "circuit"):
             circ = bluepy_obj.circuit
@@ -795,9 +808,9 @@ class ConnectivityMatrix(object):
                     "row": mat.row, "col": mat.col + mat.shape[0]
                 })
                 nrn = pd.concat([nrn_pre, nrn_post], axis=0,
-                                 keys=["Source", "Target"],
-                                 names=["connection"]).droplevel(1).reset_index()
-                nrn.index.name="local_ids"
+                                keys=["Source", "Target"],
+                                names=["connection"]).droplevel(1).reset_index()
+                nrn.index.name = "local_ids"
                 return cls(edge_idx_df, vertex_properties=nrn, edge_properties=edge_prop_df,
                            shape=(len(nrn), len(nrn)))
 
@@ -875,7 +888,8 @@ class ConnectivityMatrix(object):
         vld = self._edge_indices["row"].isin(subpop_idx) & self._edge_indices["col"].isin(subpop_idx)
         out_edges = self._edges.loc[vld.values]
         out_indices = self._edge_indices.loc[vld.values]
-        if len(out_indices) > 0: out_indices = out_indices.apply(lambda _x: subpop_lookup[_x].values, axis=0)
+        if len(out_indices) > 0:
+            out_indices = out_indices.apply(lambda _x: subpop_lookup[_x].values, axis=0)
         out_vertices = self._vertex_properties.loc[subpop_ids]
 
         return ConnectivityMatrix(out_indices,
@@ -903,7 +917,8 @@ class ConnectivityMatrix(object):
             idxx = self.vertices.sort_values(property_name)[index_name]
         else:
             assert len(np.unique(order)) == len(order)
-            if index_name == property_name: self.subpopulation(order)
+            if index_name == property_name:
+                self.subpopulation(order)
             assert np.all(np.isin(order, self.vertices[property_name]))
             idxp = self.vertices.set_index(property_name)[index_name]
             idxx = idxp[order]
@@ -930,7 +945,7 @@ class ConnectivityMatrix(object):
         """
         v = self._vertex_properties[columns_slice].values
         m = np.array([[np.cos(angle), -np.sin(angle)],
-                        [np.sin(angle), np.cos(angle)]])
+                      [np.sin(angle), np.cos(angle)]])
         V = np.dot(v - np.nanmean(v, axis=0, keepdims=True), m) - np.array([[0, position]])
         in_slice = np.abs(V[:, 1]) < (thickness / 2)
         slice_gids = self.gids[in_slice]
@@ -1025,8 +1040,11 @@ class ConnectivityMatrix(object):
         rowcol = self._edge_indices.iloc[subedge_indices]
         out_edges = self._edges.iloc[subedge_indices]
 
-        return ConnectivityMatrix(rowcol["row"], rowcol["col"], vertex_properties=self._vertex_properties,
-        edge_properties=out_edges, default_edge_property=self._default_edge, shape=self._shape)
+        return ConnectivityMatrix(rowcol["row"], rowcol["col"],
+                                  vertex_properties=self._vertex_properties,
+                                  edge_properties=out_edges,
+                                  default_edge_property=self._default_edge,
+                                  shape=self._shape)
 
     def _active_in_transmission_response(self, eavp, spks_row, spks_col, max_delta_t):
         """Returns boolean array with an entry for each edge. True, if it is active in the transmission
@@ -1076,7 +1094,7 @@ class ConnectivityMatrix(object):
         eavp = self.edge_associated_vertex_properties("gid")
         for t_start, t_end in t_wins:
             spks_row = spks[t_start:t_end]
-            spks_col = spks[t_start:(t_end+max_delta_t)]
+            spks_col = spks[t_start:(t_end + max_delta_t)]
             v = self._active_in_transmission_response(eavp, spks_row, spks_col, max_delta_t)
             yield self.subedges(v)
 
@@ -1099,10 +1117,12 @@ class ConnectivityMatrix(object):
         """
         spks = spks.loc[np.isin(spks, self.gids)]
         t_wins = np.array(t_wins).reshape((-1, 2))
-        assert normalize in ["mean", "sum", "pre", "expected_simple", "expected_strong"], "Unknown normalization: {0}".format(normalize)
+        assert normalize in ["mean", "sum", "pre", "expected_simple",
+                             "expected_strong"], "Unknown normalization: {0}".format(normalize)
 
         def empty(arg_in):
-            for _x in arg_in: yield(_x)
+            for _x in arg_in:
+                yield (_x)
         gen = empty
         if show_progress:
             from tqdm import tqdm
@@ -1112,7 +1132,7 @@ class ConnectivityMatrix(object):
         p = []
         for t_start, t_end in gen(t_wins):
             spks_row = spks[t_start:t_end]
-            spks_col = spks[t_start:(t_end+max_delta_t)]
+            spks_col = spks[t_start:(t_end + max_delta_t)]
             v = self._active_in_transmission_response(eavp, spks_row, spks_col, max_delta_t)
             if normalize == "mean":
                 p.append(v.mean())
@@ -1193,7 +1213,8 @@ class ConnectivityMatrix(object):
           A ConnectivityGroup defining a partition of this network, where each group contains the nodes associated
           with a unique combination of values of the specified properties.
         """
-        if isinstance(by_columns, str): return self.partition([by_columns])
+        if isinstance(by_columns, str):
+            return self.partition([by_columns])
         str_idx = self._vertex_properties.index.name or "index"
         grp = self.vertices.groupby(by_columns).apply(lambda x: self.subpopulation(x[str_idx]))
         if len(by_columns) == 1:
@@ -1210,13 +1231,16 @@ class ConnectivityMatrix(object):
           str_original: A string specifying the name of a node property to be used in the returned ConnectivityMatrix.
 
         Returns:
-          A ConnectivityMatrix of the number of connections between groups of nodes defined by the specified list
-          of node properties. Each group contains nodes associated with a unique combination of values of the properties.
-          The nodes of the return ConnectivityMatrix will be associated with a property of the specified name. The values
+          A ConnectivityMatrix of the number of connections between groups of nodes
+          defined by the specified list of node properties. Each group contains nodes
+          associated with a unique combination of values of the properties.
+          The nodes of the return ConnectivityMatrix will be associated with a property
+          of the specified name. The values
           of the property are lists of indices of the contained nodes in the original ConnectivityMatrix.
         """
         # TODO: Sum of values instead number of edges?
-        if isinstance(by_columns, str): return self.condense([by_columns], str_original=str_original)
+        if isinstance(by_columns, str):
+            return self.condense([by_columns], str_original=str_original)
         orig_vtx = self.vertices
         orig_vtx[str_original] = range(len(orig_vtx))
         orig_vtx = orig_vtx.groupby(by_columns)[str_original].apply(list).sort_index()
@@ -1230,9 +1254,9 @@ class ConnectivityMatrix(object):
 
         if len(by_columns) == 1:
             edges = pd.DataFrame({
-                        "row": node_idx[edge_table["row"][by_columns[0]]].values,
-                        "col": node_idx[edge_table["col"][by_columns[0]]].values},
-                        index=edge_table.index).value_counts()
+                "row": node_idx[edge_table["row"][by_columns[0]]].values,
+                "col": node_idx[edge_table["col"][by_columns[0]]].values},
+                index=edge_table.index).value_counts()
         else:
             def lookup(entry):
                 return pd.Series({
@@ -1241,8 +1265,8 @@ class ConnectivityMatrix(object):
                 })
             edges = edge_table.apply(lookup, axis=1).value_counts()
         MC = ConnectivityMatrix(edges.index.to_frame(), edge_properties={"count": edges.values},
-                             shape=(len(orig_vtx), len(orig_vtx)), default_edge_property="count",
-                             vertex_properties=orig_vtx.sort_index().to_frame())
+                                shape=(len(orig_vtx), len(orig_vtx)), default_edge_property="count",
+                                vertex_properties=orig_vtx.sort_index().to_frame())
         return MC
 
     def core_decomposition(self, str_core_label="_core_decomposition"):
@@ -1266,7 +1290,8 @@ class ConnectivityMatrix(object):
             from sknetwork.clustering import modularity
         if isinstance(with_respect_to, str):
             return self.__modularity_sknetwork__([with_respect_to], resolution_param=resolution_param)
-        if resolution_param is None: resolution_param = 1.0
+        if resolution_param is None:
+            resolution_param = 1.0
 
         rel_data = self.vertices[with_respect_to]
         idxx = pd.MultiIndex.from_frame(rel_data).unique().sort_values()
@@ -1294,10 +1319,13 @@ class ConnectivityMatrix(object):
           each subnetwork. The actual modularity is the sum of this. If "sknetwork", then only a single value is
           returned.
         """
-        if implementation == "sknetwork": return self.__modularity_sknetwork__(with_respect_to, resolution_param)
-        if isinstance(with_respect_to, str): return self.modularity([with_respect_to], resolution_param=resolution_param,
-                                                                    implementation=implementation)
-        if resolution_param is None: resolution_param = 0.0
+        if implementation == "sknetwork":
+            return self.__modularity_sknetwork__(with_respect_to, resolution_param)
+        if isinstance(with_respect_to, str):
+            return self.modularity([with_respect_to], resolution_param=resolution_param,
+                                   implementation=implementation)
+        if resolution_param is None:
+            resolution_param = 0.0
 
         edge_table = pd.concat([self.edge_associated_vertex_properties(_use) for _use in with_respect_to],
                                axis=1, keys=with_respect_to)
@@ -1311,7 +1339,8 @@ class ConnectivityMatrix(object):
         frac_out = edge_table[["row", "value"]].droplevel(0, axis=1).groupby(with_respect_to)["value"].agg("sum")
         frac_in = edge_table[["col", "value"]].droplevel(0, axis=1).groupby(with_respect_to)["value"].agg("sum")
 
-        expected = (frac_out * frac_in / sm)  # For each module: Expected sum of weights of connections within the module
+        # For each module: Expected sum of weights of connections within the module
+        expected = (frac_out * frac_in / sm)
         # Actual sums of weights within
         real = edge_table[["row", "value"]].droplevel(0, axis=1).loc[in_module]
         real = real.groupby(with_respect_to)["value"].agg("sum")
@@ -1414,12 +1443,14 @@ class ConnectivityMatrix(object):
         lst_vert_props = set([k for n in G.nodes for k in G.nodes[n].keys()])
         lst_edge_props = set([k for n in G.edges for k in G.edges[n].keys()])
 
-        if len(lst_vert_props) == 0: verts = pd.DataFrame({}, index=range(len(G)))
+        if len(lst_vert_props) == 0:
+            verts = pd.DataFrame({}, index=range(len(G)))
         else:
             verts = [pd.Series(networkx.get_node_attributes(G, _prop), name=_prop)
-                    for _prop in lst_vert_props]
+                     for _prop in lst_vert_props]
             verts = pd.concat(verts, axis=1).reset_index(drop=True)
-            if "index" in lst_vert_props: verts = verts.set_index("index", drop=True)
+            if "index" in lst_vert_props:
+                verts = verts.set_index("index", drop=True)
 
         if len(lst_edge_props) == 0:
             edge_indices = pd.DataFrame(G.edges, columns=["row", "col"])
@@ -1427,7 +1458,7 @@ class ConnectivityMatrix(object):
                                  index=edge_indices.index)
         else:
             edges = [pd.Series(networkx.get_edge_attributes(G, _prop), name=_prop)
-                    for _prop in lst_edge_props]
+                     for _prop in lst_edge_props]
             edges = pd.concat(edges, axis=1)
             edge_indices = edges.index.to_frame().reset_index(drop=True)
             edge_indices.columns = ["row", "col"]
@@ -1435,9 +1466,6 @@ class ConnectivityMatrix(object):
 
         return cls(edge_indices, edge_properties=edges,
                    vertex_properties=verts, shape=(len(verts), len(verts)))
-
-
-
 
 
 def _update_load_config(load_cfg, sim_tgt):
@@ -1458,6 +1486,7 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
     A version of ConnectivityMatrix for connectivity that changes over time structurally, i.e.
     the presence and absence of edges may change.
     """
+
     def __init__(self, *args, vertex_labels=None, vertex_properties=None,
                  edge_properties=None, default_edge_property="data", shape=None,
                  edge_off={}, edge_on={}, check_consistency=True):
@@ -1494,8 +1523,8 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
     def __getitem__(self, idx):
         is_off = self._off.loc[:idx].drop_duplicates(keep="last")
         is_on = self._on.loc[:idx].drop_duplicates(keep="last")
-        off_mx = is_off.reset_index().groupby("edge").agg("max") # the last time it's switched off
-        on_mx = is_on.reset_index().groupby("edge").agg("max") # the last time its' switched_on
+        off_mx = is_off.reset_index().groupby("edge").agg("max")  # the last time it's switched off
+        on_mx = is_on.reset_index().groupby("edge").agg("max")  # the last time its' switched_on
 
         idxx = pd.Series(0, index=range(len(self._edge_indices)), name="t").to_frame()
         idxx = idxx.subtract(off_mx.subtract(on_mx, fill_value=-1), fill_value=0) >= 0
@@ -1596,7 +1625,8 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         on_times = self._on.reset_index().groupby("edge").apply(lambda x: np.hstack([0, x["t"].values]))
 
         def counter(arg):
-            if not isinstance(arg["ton"], np.ndarray): return arg["toff"][0]
+            if not isinstance(arg["ton"], np.ndarray):
+                return arg["toff"][0]
             ton = arg["ton"]
             return (arg["toff"][:len(ton)] - ton).sum()
         check = pd.concat([off_times, on_times], axis=1, keys=["toff", "ton"])
@@ -1607,12 +1637,15 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
 
     def is_consistent(self):
         from scipy.spatial import distance
+
         def simple_diff(a, b):
             return (b - a)[0]
 
         def valid(arg):
-            if not isinstance(arg["toff"], np.ndarray): return False
-            if not isinstance(arg["ton"], np.ndarray): return len(arg["toff"]) == 1
+            if not isinstance(arg["toff"], np.ndarray):
+                return False
+            if not isinstance(arg["ton"], np.ndarray):
+                return len(arg["toff"]) == 1
             mat = distance.cdist(arg["ton"], arg["toff"], metric=simple_diff)
             return ~np.any(mat == 0) and\
                 np.all(np.triu(mat, 1) >= 0) and\
@@ -1646,7 +1679,8 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
                                              edge_off=self._off[valid_off],
                                              edge_on=self._on[valid_on], check_consistency=False)
 
-        self._on = self._on[valid_on]; self._off = self._off[valid_off]
+        self._on = self._on[valid_on]
+        self._off = self._off[valid_off]
         return self
 
     @classmethod
@@ -1669,7 +1703,9 @@ class StructurallyPlasticMatrix(ConnectivityMatrix):
         df = pd.concat(dfs, axis=0).drop_duplicates().reset_index(drop=True)
         curr_idx = pd.MultiIndex.from_frame(df)
 
-        off_dict = {}; on_dict = {}; tent_off = []
+        off_dict = {}
+        on_dict = {}
+        tent_off = []
         for t in range(len(dfs)):
             new_idx = pd.MultiIndex.from_frame(dfs[t])
             tent_on = tent_off
@@ -1689,14 +1725,15 @@ class TimeDependentMatrix(ConnectivityMatrix):
     unlike for `StructurallyPlasticMatrix` the presence and absence of edges remains fixed,
     but their efficacy (or weight) may change.
     """
+
     def __init__(self, *args, vertex_labels=None, vertex_properties=None,
                  edge_properties=None, default_edge_property=None, shape=None):
         """Not too intuitive init - please see `from_report()` below"""
         if len(args) == 1 and isinstance(args[0], np.ndarray) or isinstance(args[0], sparse.spmatrix):
             raise ValueError("TimeDependentMatrix can only be initialized by edge indices and edge properties")
         if isinstance(edge_properties, dict):
-            assert np.all([x.columns.dtype == float for x in edge_properties.values()]),\
-                 "Index of edge properties must be a float Index"
+            assert np.all([x.columns.dtype == float for x in edge_properties.values()]), \
+                "Index of edge properties must be a float Index"
             edge_properties = pd.concat(edge_properties.values(), keys=edge_properties.keys(), names=["name"], axis=1)
             edge_properties.columns = edge_properties.columns.reorder_levels([1, 0])
             edge_properties.columns.names = ["time", "name"]
@@ -1705,16 +1742,16 @@ class TimeDependentMatrix(ConnectivityMatrix):
             if isinstance(edge_properties.columns, pd.MultiIndex):
                 assert len(edge_properties.columns.levels) == 2, "Columns must index time and name"
                 if not edge_properties.columns.levels[0].dtype == float:
-                    assert edge_properties.columns.levels[1].dtype == float,\
+                    assert edge_properties.columns.levels[1].dtype == float, \
                         "Time index must be of type float Index"
                     edge_properties.columns = edge_properties.columns.reorder_levels([1, 0])
                 else:
-                    assert edge_properties.columns.levels[0].dtype == float,\
+                    assert edge_properties.columns.levels[0].dtype == float, \
                         "Time index must be of type float Index"
             else:
-                assert edge_properties.columns.dtype == float,\
-                        "Time index must be of type Float64Index"
-                edge_properties = pd.concat([edge_properties], axis=1,  keys=["agg_fn"], names=["name"])
+                assert edge_properties.columns.dtype == float, \
+                    "Time index must be of type Float64Index"
+                edge_properties = pd.concat([edge_properties], axis=1, keys=["agg_fn"], names=["name"])
                 edge_properties.columns = edge_properties.columns.reorder_levels([1, 0])
         if default_edge_property is None:
             default_edge_property = edge_properties.columns.levels[1][0]
@@ -1749,7 +1786,8 @@ class TimeDependentMatrix(ConnectivityMatrix):
 
     def default(self, new_default_property, copy=True):
         ret = super().default(new_default_property, copy=copy)
-        if copy: ret._time = self._time
+        if copy:
+            ret._time = self._time
         return ret
 
     @classmethod
@@ -1787,7 +1825,8 @@ class TimeDependentMatrix(ConnectivityMatrix):
             presyn_mapping = pd.read_pickle(presyn_mapping)
 
         data = reindex_report(data, presyn_mapping)
-        data = data.iloc[data.index.get_level_values(0).isin(nrn["node_ids"])]  # filter to have only target pre_node_idx
+        # filter to have only target pre_node_idx
+        data = data.iloc[data.index.get_level_values(0).isin(nrn["node_ids"])]
         print("Report read! Starting aggregation of %i data points..." % data.shape[0])
 
         edges = aggregate_data(data, report_cfg, lu_node_idx)
@@ -1802,7 +1841,7 @@ class TimeDependentMatrix(ConnectivityMatrix):
             ts = edges.columns.levels[1]
             stat_edges = [pd.DataFrame.from_dict({t: Ms[agg_func].tocoo().data for t in ts})
                           for agg_func in agg_funcs]
-            stat_edges = pd.concat(stat_edges, axis=1,   keys=agg_funcs)
+            stat_edges = pd.concat(stat_edges, axis=1, keys=agg_funcs)
             stat_edges.columns.set_names(edges.columns.names, inplace=True)
             # map (non-reported, local) col idx to node ids and then back to (global) col idx
             lu_nr_node_idx = pd.Series(non_report_node_idx)
@@ -1845,7 +1884,8 @@ class ConnectivityGroup(object):
                                             axis=0).drop_duplicates()
 
         for colname in self._vertex_properties.columns:
-            assert not hasattr(self, colname), "{0} is a protected name and cannot be used as vertex property!".format(colname)
+            assert not hasattr(
+                self, colname), "{0} is a protected name and cannot be used as vertex property!".format(colname)
             setattr(self, colname, self._vertex_properties[colname].values)
 
         # TODO: calling it "gids" might be too BlueBrain-specific! Change name?
@@ -1919,7 +1959,7 @@ class ConnectivityGroup(object):
 
         try:
             idx = pd.read_hdf(fn, dset_tbl)
-        except:
+        except BaseException:
             raise ValueError("File not foudn or no TOC found at {0} in {1}".format(prefix, fn))
         _mi = pd.MultiIndex.from_frame(idx[idx.columns[:-1]])
         idx = idx[idx.columns[-1]]
@@ -1930,7 +1970,7 @@ class ConnectivityGroup(object):
             try:
                 fn_read, prefix_read, name_read = str_path.split("::")
                 return ConnectivityMatrix.from_h5(fn, name_read, prefix_read)
-            except:
+            except BaseException:
                 raise ValueError("Invalid TOC at {0} in {1}".format(prefix, fn))
 
         ret = idx.apply(read_mat)

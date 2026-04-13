@@ -7,6 +7,7 @@ from . import make_groups
 from . import load_neurons
 from .from_atlas import atlas_property
 
+
 def _read_if_needed(cfg_or_dict, resolve_at=None):
     if isinstance(cfg_or_dict, str) or isinstance(cfg_or_dict, os.PathLike):
         if not os.path.isfile(cfg_or_dict) and resolve_at is not None:
@@ -20,6 +21,7 @@ def _read_if_needed(cfg_or_dict, resolve_at=None):
     cfg = _resolve_includes(cfg, resolve_at=resolve_at)
     return cfg
 
+
 def _resolve_includes(cfg, resolve_at=None):
     if isinstance(cfg, dict):
         if "include" in cfg:
@@ -27,7 +29,7 @@ def _resolve_includes(cfg, resolve_at=None):
         for k, v in cfg.items():
             cfg[k] = _resolve_includes(v, resolve_at=resolve_at)
     elif isinstance(cfg, list):
-       cfg = [_resolve_includes(v, resolve_at=resolve_at) for v in cfg]
+        cfg = [_resolve_includes(v, resolve_at=resolve_at) for v in cfg]
     return cfg
 
 
@@ -38,8 +40,9 @@ def _flatten_nested_list(a_lst):
         if isinstance(e, list):
             _flatten_nested_list(e)
             a_lst.extend(e)
-        else: a_lst.append(e)
-    
+        else:
+            a_lst.append(e)
+
 
 def group_with_config(df_in, cfg_or_dict):
     cfg = _read_if_needed(cfg_or_dict)
@@ -64,9 +67,10 @@ def group_with_config(df_in, cfg_or_dict):
             if func is None:
                 raise ValueError("Unknown grouping method: {0}".format(grouping["method"]))
             df_in = func(df_in, grouping["columns"], *grouping.get("args", []), replace=is_first,
-                        **grouping.get("kwargs", {}))
+                         **grouping.get("kwargs", {}))
             is_first = False
     return df_in
+
 
 def evaluate_filter_config(df_in, cfg_or_dict):
     cfg = _read_if_needed(cfg_or_dict)
@@ -75,10 +79,10 @@ def evaluate_filter_config(df_in, cfg_or_dict):
         cfg = cfg["filtering"]
     if not isinstance(cfg, list):
         cfg = [cfg]
-    
+
     valid = numpy.ones(len(df_in), dtype=bool)
     for rule in cfg:
-        if not "column" in rule:
+        if "column" not in rule:
             continue
         col = df_in[rule["column"]]
         if "values" in rule:
@@ -132,10 +136,11 @@ def load_with_config(circ, cfg_or_dict, node_population=None):
         raise ValueError("Expected list here. Got: {0}".format(atlases.__class__))
     for atlas_spec in atlases:
         col_names = atlas_spec["properties"]
-        if not isinstance(col_names, list): col_names = [col_names]
+        if not isinstance(col_names, list):
+            col_names = [col_names]
         nrn = pandas.concat([nrn, atlas_property(nrn, atlas_spec["data"], circ=circ, column_names=col_names)],
-        axis=1, copy=False)
-    
+                            axis=1, copy=False)
+
     groups = cfg.get("groups", [])
     try:
         _flatten_nested_list(groups)
@@ -143,9 +148,9 @@ def load_with_config(circ, cfg_or_dict, node_population=None):
         raise ValueError("Expected list here. Got: {0}".format(groups.__class__))
     for group_spec in groups:
         nrn[group_spec["name"]] = evaluate_filter_config(nrn, group_spec)
-        
+
     return nrn
-    
+
 
 def load_group_filter(circ, cfg_or_dict, node_population=None):
     cfg_or_dict = cfg_or_dict or {}

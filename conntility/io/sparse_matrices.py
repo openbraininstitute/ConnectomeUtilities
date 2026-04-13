@@ -59,7 +59,7 @@ def write_toc_plus_payload(extracted, to_path, payload_type="sparse", format=Non
     h5_file.close()
 
     toc.to_hdf(path_hdf_store, key=group_identifier_toc,
-                     mode="a", format=(format or "fixed"))
+               mode="a", format=(format or "fixed"))
 
 
 class LazyMatrix:
