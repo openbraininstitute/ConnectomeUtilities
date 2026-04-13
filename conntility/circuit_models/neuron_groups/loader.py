@@ -34,14 +34,12 @@ def load_neurons(circ, properties, base_target=None, node_population=None, **kwa
     node = circ.nodes
     if node_population is not None:
         neurons = node[node_population].get(group=base_target, properties=props_to_load)
-        neurons.index.name = GID  # Until my pull request is merged.
+        neurons.index.names = [GID]
     else:
-        try:
-            neurons = node.get(group=base_target, properties=props_to_load)
-        except Exception as err:
-            if str(err).startswith("Same property"):
-                raise ValueError("In multi-population circuits, must use node_population= kwarg")
-            raise
+        pop_dfs = [df for _, df in node.get(group=base_target, properties=props_to_load)]
+        if len(pop_dfs) > 1:
+            raise ValueError("In multi-population circuits, must use node_population= kwarg")
+        neurons = pop_dfs[0]
     neurons = neurons.reset_index()
 
     neurons = add_extra_properties(neurons, circ, extra_props, **kwargs)
