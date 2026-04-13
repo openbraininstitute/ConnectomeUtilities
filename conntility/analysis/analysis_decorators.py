@@ -28,7 +28,7 @@ def grouped_postsyn_by_grouping_config(grp_cfg):
     Perform an analysis separately on submatrices corresponding to postsynaptic groups of neurons.
     That is: for a given population A it is executed on M[:, A]
     """
-    
+
     return _grouped_by_grouping_config(grp_cfg, __submatrix_postsyn__)
 
 
@@ -47,7 +47,7 @@ def _grouped_by_grouping_config(grp_cfg, submatrix_func):
     def decorator(analysis_function):
         def out_function(matrix, nrn_df, *args, **kwargs):
             nrn_df = pandas.concat([nrn_df, pandas.Series(range(len(nrn_df)),
-            index=nrn_df.index, name="__index__")], copy=False, axis=1)
+            index=nrn_df.index, name="__index__")], axis=1)
             grouped = group_with_config(nrn_df, grp_cfg)
             submatrices = grouped["__index__"].groupby(grouped.index.names).apply(submatrix_func(matrix, nrn_df))
             idxx = grouped.index.to_frame().drop_duplicates()
@@ -62,7 +62,7 @@ def _grouped_by_grouping_config(grp_cfg, submatrix_func):
             # TODO: Provide separate neuron dataframes for pre- and post-syn population
             ret = [analysis_function(*submatrices[ix], *args, **kwargs) for ix in idxx]
             if numpy.all([isinstance(_res, pandas.Series) for _res in ret]):
-                ret = pandas.concat(ret, axis=0, keys=out_index, names=out_index.names, copy=False)
+                ret = pandas.concat(ret, axis=0, keys=out_index, names=out_index.names)
             else:
                 ret = pandas.Series(ret, index=out_index)
             return ret
@@ -78,7 +78,7 @@ def pathways_by_grouping_config(grp_cfg):
     def decorator(analysis_function):
         def out_function(matrix, nrn_df, *args, **kwargs):
             nrn_df = pandas.concat([nrn_df, pandas.Series(range(len(nrn_df)),
-            index=nrn_df.index, name="__index__")], copy=False, axis=1)
+            index=nrn_df.index, name="__index__")], axis=1)
             grouped = group_with_config(nrn_df, grp_cfg)
 
             u_idx = grouped.index.to_frame().drop_duplicates()
@@ -93,11 +93,11 @@ def pathways_by_grouping_config(grp_cfg):
                     idx_dict = dict(zip(cols_pre, idx_fr))
                     idx_dict.update(dict(zip(cols_post, idx_to)))
                     out_idx.append(idx_dict)
-            
+
             out_idx = pandas.MultiIndex.from_frame(pandas.DataFrame.from_records(out_idx))
 
             if numpy.all([isinstance(_res, pandas.Series) for _res in ret]):
-                ret = pandas.concat(ret, axis=0, keys=out_idx, names=out_idx.names, copy=False)
+                ret = pandas.concat(ret, axis=0, keys=out_idx, names=out_idx.names)
             else:
                 ret = pandas.Series(ret, index=out_idx)
             return ret
@@ -145,7 +145,7 @@ def _grouped_by_filtering_config(lst_fltr_cfg, matrix_func):
         def out_function(matrix, nrn_df, *args, **kwargs):
             midx = __index_from_filter_configs(lst_fltr_cfg)
             nrn_df = pandas.concat([nrn_df, pandas.Series(range(len(nrn_df)),
-            index=nrn_df.index, name="__index__")], copy=False, axis=1)
+            index=nrn_df.index, name="__index__")], axis=1)
             groups = [filter_with_config(nrn_df, fltr_cfg) for fltr_cfg in lst_fltr_cfg]
 
             matrix_lo = matrix_func(matrix, nrn_df)
@@ -154,7 +154,7 @@ def _grouped_by_filtering_config(lst_fltr_cfg, matrix_func):
                 *args, **kwargs
                 ) for grp in groups]
             if numpy.all([isinstance(_res, pandas.Series) for _res in ret]):
-                ret = pandas.concat(ret, axis=0, copy=False,
+                ret = pandas.concat(ret, axis=0,
                 keys=map(tuple, midx.values), names=midx.columns.values.tolist())
             else:
                 ret = pandas.Series(ret, index=pandas.MultiIndex.from_frame(midx))
@@ -207,13 +207,13 @@ def control_by_randomization(randomization, n_randomizations=10, only_mean=True,
                                              names=["Instance"])
                     base_val = pandas.concat([base_val], axis=0, keys=[0], names=["Instance"])
                 return pandas.concat(
-                    [base_val, cmp_vals], axis=0, copy=False,
+                    [base_val, cmp_vals], axis=0,
                     keys=["data", rand_name], names=["Control"]
                 )
             if only_mean:
                 cmp_vals = numpy.nanmean(cmp_vals)
                 return pandas.Series([base_val, cmp_vals], index=["data", rand_name])
-            midx = pandas.MultiIndex.from_tuples([("data", 0)] + 
+            midx = pandas.MultiIndex.from_tuples([("data", 0)] +
                               [(rand_name, i) for i in range(len(cmp_vals))],
                               names=["Control", "Instance"])
             return pandas.Series([base_val] + cmp_vals, index=midx)
@@ -231,7 +231,7 @@ def control_by_random_sample(con_mat_obj, control_property, n_randomizations=10,
         func = getattr(ctrl_index, sample_func)
     rand_name = "sampled_by_" + control_property
     index_property = con_mat_obj._vertex_properties.index.name or "index"
-    
+
     def decorator(analysis_function):
         def out_function(matrix, nrn_df, *args, **kwargs):
             base_val = analysis_function(matrix, nrn_df, *args, **kwargs)
@@ -244,7 +244,7 @@ def control_by_random_sample(con_mat_obj, control_property, n_randomizations=10,
             if isinstance(base_val, pandas.Series):
                 cmp_vals = pandas.concat(cmp_vals, axis=1).mean(axis=1)
                 return pandas.concat(
-                    [base_val, cmp_vals], axis=0, copy=False,
+                    [base_val, cmp_vals], axis=0,
                     keys=["data", rand_name], names=["Control"]
                 )
             cmp_vals = numpy.nanmean(cmp_vals)
