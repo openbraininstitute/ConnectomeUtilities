@@ -1699,6 +1699,7 @@ class TimeDependentMatrix(ConnectivityMatrix):
                  "Index of edge properties must be a float Index"
             edge_properties = pd.concat(edge_properties.values(), keys=edge_properties.keys(), names=["name"], axis=1)
             edge_properties.columns = edge_properties.columns.reorder_levels([1, 0])
+            edge_properties.columns.names = ["time", "name"]
         else:
             assert isinstance(edge_properties, pd.DataFrame)
             if isinstance(edge_properties.columns, pd.MultiIndex):
