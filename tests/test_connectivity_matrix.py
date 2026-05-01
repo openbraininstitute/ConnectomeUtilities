@@ -160,8 +160,8 @@ def test_random_edge_sampling():
     
     subpop = M.index("foo").lt(2)
     assert subpop.edges[subpop._default_edge].mean() > 99
-    ctrlpop = M.filter().random_by_vertex_property(subpop, "bar")
-    ctrlpop2 = M.filter().random_by_vertex_property_ids(subpop.gids, "bar")
+    ctrlpop = M.filter("bar").random_by_vertex_property(subpop)
+    ctrlpop2 = M.filter("bar").random_by_vertex_property_ids(subpop.gids)
     ctrlpop2 = M.subedges(ctrlpop2)
     assert (ctrlpop.edges.mean() < subpop.edges.mean()).all()  # Strictly not 100% guaranteed, but likely
     assert (ctrlpop2.edges.mean() < subpop.edges.mean()).all()
@@ -175,8 +175,8 @@ def test_random_edge_sampling():
     eavp = subpop.edge_associated_vertex_properties("foo")
     assert not (eavp["row"] < 2).any()
     manual_fltr = M.edges[M._default_edge] < 90
-    ctrlpop = M.filter().random_by_vertex_property(subpop, "meh")
-    ctrlpop2 = M.filter().random_by_vertex_property(manual_fltr, "meh")
+    ctrlpop = M.filter("meh").random_by_vertex_property(subpop)
+    ctrlpop2 = M.filter("meh").random_by_vertex_property(manual_fltr)
 
     A = subpop.edge_associated_vertex_properties("meh").value_counts()
     B = ctrlpop.edge_associated_vertex_properties("meh").value_counts()
