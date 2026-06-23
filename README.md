@@ -4,7 +4,7 @@ Complex network representation and analysis layer
 
 [![DOI](https://zenodo.org/badge/641456590.svg)](https://zenodo.org/badge/latestdoi/641456590)
 
-![ConnectomeUtilities](https://github.com/BlueBrain/ConnectomeUtilities/blob/main/banner-ConnectomeUtilities.jpg?raw=true)
+![ConnectomeUtilities](https://github.com/openbraininstitute/ConnectomeUtilities/blob/main/banner-ConnectomeUtilities.jpg?raw=true)
 
 # Table of Contents
 
