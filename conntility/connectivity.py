@@ -823,7 +823,7 @@ class ConnectivityMatrix(object):
 
         nrn = nrn.set_index(GID)
         mat = circuit_connection_matrix(circ, for_gids=nrn.index.values, connectome=connectome,
-                                       show_progress=show_progress, **kwargs)
+                                        show_progress=show_progress, **kwargs)
         if isinstance(mat, dict):
             mat = dict([(str(k), v.tocoo()) for k, v in mat.items()])
             edge_prop_df = pd.DataFrame(dict([(k, v.data) for k, v in mat.items()]))
