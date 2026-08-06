@@ -761,7 +761,7 @@ class ConnectivityMatrix(object):
         return an_obj
 
     @classmethod
-    def from_bluepy(cls, bluepy_obj, load_config=None, connectome=LOCAL_CONNECTOME, **kwargs):
+    def from_bluepy(cls, bluepy_obj, load_config=None, connectome=LOCAL_CONNECTOME, show_progress=True, **kwargs):
         """
         Sonata config based constructor
         :param bluepy_obj: bluepysnap Simulation or Circuit object
@@ -771,6 +771,8 @@ class ConnectivityMatrix(object):
         heuristically estimated. In that case it is recommended to specify a node_population
         to load in the load_config. The heuristics for guessing a "local" connectome are
         documented in conntility.circuit_models.circuit_connection_matrix.
+        :param show_progress: If True (default), display tqdm progress bars during matrix extraction.
+        Set to False to silence progress output.
 
         """
         from .circuit_models.neuron_groups import load_filter
@@ -794,7 +796,8 @@ class ConnectivityMatrix(object):
                                        node_population=circ.edges[connectome].target.name)
                 mat = circuit_connection_matrix(circ, for_gids=nrn_pre.index.values,
                                                 for_gids_post=nrn_post.index.values,
-                                                connectome=connectome, **kwargs)
+                                                connectome=connectome,
+                                                show_progress=show_progress, **kwargs)
                 if isinstance(mat, dict):
                     mat = dict([(str(k), v.tocoo()) for k, v in mat.items()])
                     edge_prop_df = pd.DataFrame(dict([(k, v.data) for k, v in mat.items()]))
@@ -819,7 +822,8 @@ class ConnectivityMatrix(object):
             nrn = load_filter(circ, load_config, node_population=nodepop)
 
         nrn = nrn.set_index(GID)
-        mat = circuit_connection_matrix(circ, for_gids=nrn.index.values, connectome=connectome, **kwargs)
+        mat = circuit_connection_matrix(circ, for_gids=nrn.index.values, connectome=connectome,
+                                        show_progress=show_progress, **kwargs)
         if isinstance(mat, dict):
             mat = dict([(str(k), v.tocoo()) for k, v in mat.items()])
             edge_prop_df = pd.DataFrame(dict([(k, v.data) for k, v in mat.items()]))

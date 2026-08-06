@@ -14,7 +14,8 @@ STR_VOID = "VOID"
 
 
 def full_connection_matrix(sonata_fn, n_neurons=None, population="default",
-                           edge_property=None, agg_func=None, shape=None, chunk=50000000):
+                           edge_property=None, agg_func=None, shape=None, chunk=50000000,
+                           show_progress=True):
     """
     Returns the full connection matrix encoded in a sonata h5 file.
     Input:
@@ -28,6 +29,7 @@ def full_connection_matrix(sonata_fn, n_neurons=None, population="default",
     belonging to the same connection. Must be provided if edge_property is provided!
     chunk (optional): Number of connections to read at the same time. Larger values
     will run generally faster, but with fewer updates of the progress bar.
+    show_progress (bool): If True, display tqdm progress bars.
 
     Returns:
     scipy.sparse matrix of connectivity
@@ -36,7 +38,8 @@ def full_connection_matrix(sonata_fn, n_neurons=None, population="default",
         assert agg_func is not None, ("Must also provide a list of functions to aggregate "
                                       "synapses belonging to the same connection!")
         return _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=n_neurons,
-                                         population=population, shape=shape, chunk=chunk)
+                                         population=population, shape=shape, chunk=chunk,
+                                         show_progress=show_progress)
     h5 = h5py.File(sonata_fn, "r")['edges/%s' % population]
     if n_neurons is not None and shape is None:
         shape = (n_neurons, n_neurons)
@@ -45,7 +48,8 @@ def full_connection_matrix(sonata_fn, n_neurons=None, population="default",
     A = numpy.zeros(dset_sz, dtype=int)
     B = numpy.zeros(dset_sz, dtype=int)
     splits = numpy.arange(0, dset_sz + chunk, chunk)
-    for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), total=len(splits) - 1):
+    for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), total=len(splits) - 1,
+                                      disable=not show_progress):
         A[splt_fr:splt_to] = h5['source_node_id'][splt_fr:splt_to]
         B[splt_fr:splt_to] = h5['target_node_id'][splt_fr:splt_to]
     M = sparse.coo_matrix((numpy.ones_like(A, dtype=bool), (A, B)), shape=shape)
@@ -53,7 +57,7 @@ def full_connection_matrix(sonata_fn, n_neurons=None, population="default",
 
 
 def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None, population="default",
-                              shape=None, chunk=50000000):
+                              shape=None, chunk=50000000, show_progress=True):
     """
     Returns the full connection matrix encoded in a sonata h5 file. Instead of just a binary matrix, it looks up
     and assigns structural properties to the connections
@@ -66,6 +70,7 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
     population (str): Sonata population to work with.
     chunk (optional): Number of connections to read at the same time. Larger values
     will run generally faster, but with fewer updates of the progress bar.
+    show_progress (bool): If True, display tqdm progress bars.
 
     Returns:
     scipy.sparse matrix of connectivity
@@ -82,7 +87,8 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
     out_data = {}
 
     splits = numpy.arange(0, dset_sz + chunk, chunk)
-    for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), total=len(splits) - 1):
+    for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), total=len(splits) - 1,
+                                      disable=not show_progress):
         A = h5['source_node_id'][splt_fr:splt_to]
         B = h5['target_node_id'][splt_fr:splt_to]
         data = h5['0'][edge_property][splt_fr:splt_to]
@@ -101,7 +107,8 @@ def _full_connection_property(sonata_fn, edge_property, agg_func, n_neurons=None
     return M
 
 
-def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_property, agg_func):
+def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_property, agg_func,
+                                  show_progress=True):
     """
     Returns the connection matrix encoded in a sonata h5 file for a subset of neurons.
     Input:
@@ -113,6 +120,7 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
     agg_func: if a callable: A function to aggregate multiple synapse properties into a single,
                              scalar connection property (has to work with pandas' `.apply()`)
               if a list: A list of the above described aggregation functions (has to work with pandas' `.agg()`)
+    show_progress (bool): If True, display tqdm progress bars.
 
     Returns:
     scipy.sparse matrix of connectivity (or a dict of those if a list is passed as `agg_func`)
@@ -131,7 +139,7 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
     indptr = [0]
     if not isinstance(agg_func, list):
         data = []
-        for id_post in tqdm.tqdm(idx_post):
+        for id_post in tqdm.tqdm(idx_post, disable=not show_progress):
             ids_pre = []
             data_pre = []
             ranges = h5['indices']['target_to_source']['node_id_to_ranges'][id_post, :]
@@ -152,7 +160,7 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
         return mat
     else:
         data = {}
-        for id_post in tqdm.tqdm(idx_post):
+        for id_post in tqdm.tqdm(idx_post, disable=not show_progress):
             ids_pre = []
             data_pre = []
             ranges = h5['indices']['target_to_source']['node_id_to_ranges'][id_post, :]
@@ -179,7 +187,8 @@ def _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_p
 
 
 def connection_matrix_for_gids(sonata_fn, gids, gids_post=None, population="default",
-                               edge_property=None, agg_func=None, load_full=False, **kwargs):
+                               edge_property=None, agg_func=None, load_full=False,
+                               show_progress=True, **kwargs):
     """
     Returns the connection matrix encoded in a sonata h5 file for a subset of neurons.
     Input:
@@ -193,6 +202,7 @@ def connection_matrix_for_gids(sonata_fn, gids, gids_post=None, population="defa
     agg_func: if a callable: A function to aggregate multiple synapse properties into a single,
                              scalar connection property (has to work with pandas' `.apply()`)
               if a list: A list of the above described aggregation functions (has to work with pandas' `.agg()`)
+    show_progress (bool): If True, display tqdm progress bars.
 
     Returns:
     scipy.sparse matrix of connectivity (or a dict of those if a list is passed as `agg_func`)
@@ -201,14 +211,15 @@ def connection_matrix_for_gids(sonata_fn, gids, gids_post=None, population="defa
         gids_post = gids
     if load_full:
         M = full_connection_matrix(sonata_fn, population=population, edge_property=edge_property,
-                                   agg_func=agg_func, **kwargs)
+                                   agg_func=agg_func, show_progress=show_progress, **kwargs)
         if isinstance(M, dict):
             return dict([(k, v.tocsr()[numpy.ix_(gids, gids_post)])
                          for k, v in M.items()])
         return M.tocsr()[numpy.ix_(gids, gids_post)]
     if edge_property is not None:
         assert agg_func is not None, "When looking up connection properties, must provide an agg_func, such as 'mean'"
-        return _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_property, agg_func)
+        return _connection_property_for_gids(sonata_fn, gids, gids_post, population, edge_property, agg_func,
+                                             show_progress=show_progress)
 
     h5 = h5py.File(sonata_fn, "r")['edges/%s' % population]
     idx = numpy.array(gids)
@@ -220,7 +231,7 @@ def connection_matrix_for_gids(sonata_fn, gids, gids_post=None, population="defa
 
     indices = []
     indptr = [0]
-    for id_post in tqdm.tqdm(idx_post):
+    for id_post in tqdm.tqdm(idx_post, disable=not show_progress):
         ids_pre = []
         ranges = h5['indices']['target_to_source']['node_id_to_ranges'][id_post, :]
         for block in h5['indices']['target_to_source']['range_to_edge_id'][ranges[0]:ranges[1], :]:
@@ -235,7 +246,8 @@ def connection_matrix_for_gids(sonata_fn, gids, gids_post=None, population="defa
 
 def circuit_connection_matrix(circ, connectome=LOCAL_CONNECTOME, for_gids=None, for_gids_post=None,
                               edge_population=None, node_population=None,
-                              edge_property=None, agg_func=None, chunk=50000000, load_full=False):
+                              edge_property=None, agg_func=None, chunk=50000000, load_full=False,
+                              show_progress=True):
     """
     Returns a structural connection matrix, either for an entire circuit, or a subset of neurons.
     For either local connectivity or any projection.
@@ -263,6 +275,7 @@ def circuit_connection_matrix(circ, connectome=LOCAL_CONNECTOME, for_gids=None, 
               if a list: A list of the above described aggregation functions (has to work with pandas' `.agg()`)
     chunk (optional): Number of connections to read at the same time. Larger values will run generally faster,
                       but with fewer updates of the progress bar.
+    show_progress (bool): If True, display tqdm progress bars.
 
     Returns:
     scipy.sparse matrix of connectivity (or a dict of those if a list is passed as `agg_func`)
@@ -281,9 +294,10 @@ def circuit_connection_matrix(circ, connectome=LOCAL_CONNECTOME, for_gids=None, 
         edge_population = connectome
     if for_gids is None:
         return full_connection_matrix(conn_file, edge_property=edge_property, agg_func=agg_func, shape=shape,
-                                      population=edge_population, chunk=chunk)
+                                      population=edge_population, chunk=chunk, show_progress=show_progress)
     return connection_matrix_for_gids(conn_file, for_gids, gids_post=for_gids_post, population=edge_population,
-                                      edge_property=edge_property, agg_func=agg_func, load_full=load_full, chunk=chunk)
+                                      edge_property=edge_property, agg_func=agg_func, load_full=load_full,
+                                      chunk=chunk, show_progress=show_progress)
 
 
 def circuit_node_set_matrix(circ, for_node_set, for_node_set_post=None):
@@ -442,7 +456,8 @@ def _make_node_lookup(circ, neuron_groups, column_gid, fill_unused_gids=True):
     return node_lookup
 
 
-def connection_matrix_between_groups_partition(sonata_fn, node_lookup, population, chunk=50000000):
+def connection_matrix_between_groups_partition(sonata_fn, node_lookup, population, chunk=50000000,
+                                               show_progress=True):
     # TODO: If the user accidently provides a "neuron_groups" instead of "node_lookup" input give helpful message
     # TODO: Evaluate if it is necessary to fill node_lookup for unused gids with STR_VOID
     """
@@ -456,7 +471,8 @@ def connection_matrix_between_groups_partition(sonata_fn, node_lookup, populatio
     midxx = pandas.MultiIndex.from_tuples([], names=["Source node", "Target node"])
     counts = pandas.Series([], index=midxx, dtype=int)
 
-    for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), desc="Counting...", total=len(splits) - 1):
+    for splt_fr, splt_to in tqdm.tqdm(zip(splits[:-1], splits[1:]), desc="Counting...", total=len(splits) - 1,
+                                      disable=not show_progress):
         son_idx_fr = h5['source_node_id'][splt_fr:splt_to]
         son_idx_to = h5['target_node_id'][splt_fr:splt_to]
         reg_fr = node_lookup[son_idx_fr]
@@ -481,7 +497,8 @@ def _afferent_gids(h5, post_gid):
     return son_idx_fr
 
 
-def connection_matrix_between_groups_partial(sonata_fn, node_lookup, population="default", **kwargs):
+def connection_matrix_between_groups_partial(sonata_fn, node_lookup, population="default",
+                                             show_progress=True, **kwargs):
     # TODO: If the user accidently provides a "neuron_groups" instead of "node_lookup" input give helpful message
     """
     Don't use this. Use circuit_matrix_between_groups
@@ -493,7 +510,8 @@ def connection_matrix_between_groups_partial(sonata_fn, node_lookup, population=
     lst_counts_from = []
     with h5py.File(sonata_fn, "r") as h5_file:
         h5 = h5_file['edges/{0}'.format(population)]
-        for node_to, lst_post_gids in tqdm.tqdm(gids_per_node.items(), total=len(gids_per_node)):
+        for node_to, lst_post_gids in tqdm.tqdm(gids_per_node.items(), total=len(gids_per_node),
+                                                disable=not show_progress):
             lst_pre_gids = [_afferent_gids(h5, post_gid) for post_gid in lst_post_gids]
             lst_pre_gids = numpy.hstack(lst_pre_gids)
             lst_pre_gids = lst_pre_gids[numpy.isin(lst_pre_gids, node_lookup.index)]
