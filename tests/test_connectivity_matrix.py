@@ -182,3 +182,41 @@ def test_random_edge_sampling():
     B = ctrlpop.edge_associated_vertex_properties("meh").value_counts()
     C = ctrlpop2.edge_associated_vertex_properties("meh").value_counts()
     assert (A == B).all() and (A == C).all()
+
+
+def _condense_by_hand(M, by_columns):
+    """The connections between each pair of groups of nodes, counted one at a time, the members of
+    each group and the values that define it; nodes with a missing value are in no group."""
+    keys = [None if any(pandas.isna(v) for v in row) else tuple(row)
+            for row in M.vertices[by_columns].itertuples(index=False)]
+    order = sorted({k for k in keys if k is not None})
+    counts = numpy.zeros((len(order), len(order)), dtype=int)
+    for r, c in zip(M._edge_indices["row"], M._edge_indices["col"]):
+        if keys[r] is not None and keys[c] is not None:
+            counts[order.index(keys[r]), order.index(keys[c])] += 1
+    members = [[i for i, k in enumerate(keys) if k == key] for key in order]
+    return counts, members, order
+
+
+def test_condense(monkeypatch):
+    rng = numpy.random.default_rng(7)
+    n = 60
+    vertex_props = pandas.DataFrame({
+        "layer": rng.choice(["L1", "L23", "L4"], n),
+        "synapse_class": rng.choice(["EXC", "INH"], n),
+        "region": rng.choice(["a", "b", None], n),
+    }, index=rng.permutation(n))
+    M = test_module.ConnectivityMatrix(sparse.coo_matrix(rng.random((n, n)) < 0.15), vertex_properties=vertex_props)
+    by_cases = [["layer"], ["layer", "synapse_class"], ["region"]]
+    # Few groups: every pair counted in one array. Then the pairs that occur, in chunks of 7 connections.
+    for dense_pairs, chunk in ((test_module._CONDENSE_DENSE_PAIRS, test_module._CONDENSE_CHUNK), (0, 7)):
+        monkeypatch.setattr(test_module, "_CONDENSE_DENSE_PAIRS", dense_pairs)
+        monkeypatch.setattr(test_module, "_CONDENSE_CHUNK", chunk)
+        for by_columns in by_cases:
+            counts, members, groups = _condense_by_hand(M, by_columns)
+            C = M.condense(by_columns)
+            assert (C.array == counts).all()
+            assert list(C.vertices[by_columns].itertuples(index=False, name=None)) == groups
+            assert [list(m) for m in C.vertices["_idxx_in_original"]] == members
+            assert C.matrix.nnz == (counts > 0).sum()
+    assert (M.condense("layer").array == M.condense(["layer"]).array).all()

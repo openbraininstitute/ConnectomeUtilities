@@ -14,6 +14,8 @@ from .circuit_models.neuron_groups.defaults import GID
 from .circuit_models.connection_matrix import LOCAL_CONNECTOME
 
 _MAT_GLOBAL_INDEX = 0
+_CONDENSE_CHUNK = 1_000_000  # condense counts connections in chunks of this many
+_CONDENSE_DENSE_PAIRS = 10_000_000  # up to this many pairs of groups, it counts them all in one array
 
 
 class _MatrixNodeIndexer(object):
@@ -1237,39 +1239,51 @@ class ConnectivityMatrix(object):
           A ConnectivityMatrix of the number of connections between groups of nodes
           defined by the specified list of node properties. Each group contains nodes
           associated with a unique combination of values of the properties.
-          The nodes of the return ConnectivityMatrix will be associated with a property
-          of the specified name. The values
+          The nodes of the return ConnectivityMatrix have the grouping properties, with the values
+          that define their group, and a property of the specified name. The values
           of the property are lists of indices of the contained nodes in the original ConnectivityMatrix.
+
+          Connections are counted in chunks, from each node's group, so the memory needed stays small
+          for networks with many millions of connections.
         """
         # TODO: Sum of values instead number of edges?
         if isinstance(by_columns, str):
             return self.condense([by_columns], str_original=str_original)
         orig_vtx = self.vertices
         orig_vtx[str_original] = range(len(orig_vtx))
+        keys = orig_vtx[by_columns[0]] if len(by_columns) == 1 else pd.MultiIndex.from_frame(orig_vtx[by_columns])
         orig_vtx = orig_vtx.groupby(by_columns)[str_original].apply(list).sort_index()
+        n_groups = len(orig_vtx)
+        # The group of each node, as an integer: an edge's pair of groups is then a single integer, and
+        # counting them needs neither a table of the edges' node properties nor a hash of every edge.
+        # Edges of a node whose properties form no group (a missing value) are not counted.
+        node_group = orig_vtx.index.get_indexer(keys)
 
-        edge_table = pd.concat([self.edge_associated_vertex_properties(_use) for _use in by_columns],
-                               axis=1, keys=by_columns)
-        edge_table.columns = edge_table.columns.reorder_levels([1, 0])
-        node_idx = pd.Series(range(len(orig_vtx)), index=orig_vtx.index)
-
-        orig_vtx.index = node_idx.values
-
-        if len(by_columns) == 1:
-            edges = pd.DataFrame({
-                "row": node_idx[edge_table["row"][by_columns[0]]].values,
-                "col": node_idx[edge_table["col"][by_columns[0]]].values},
-                index=edge_table.index).value_counts()
-        else:
-            def lookup(entry):
-                return pd.Series({
-                    "row": node_idx.__getitem__(tuple(entry["row"])),
-                    "col": node_idx.__getitem__(tuple(entry["col"]))
-                })
-            edges = edge_table.apply(lookup, axis=1).value_counts()
-        MC = ConnectivityMatrix(edges.index.to_frame(), edge_properties={"count": edges.values},
-                                shape=(len(orig_vtx), len(orig_vtx)), default_edge_property="count",
-                                vertex_properties=orig_vtx.sort_index().to_frame())
+        rows, cols = self._edge_indices["row"].to_numpy(), self._edge_indices["col"].to_numpy()
+        dense = n_groups * n_groups <= _CONDENSE_DENSE_PAIRS
+        counts = np.zeros(n_groups * n_groups if dense else 0, dtype=np.int64)
+        found = np.empty(0 if dense else len(rows), dtype=np.int64)  # too many groups to count every pair
+        n_found = 0
+        for start in range(0, len(rows), _CONDENSE_CHUNK):
+            row_group = node_group[rows[start:start + _CONDENSE_CHUNK]]
+            col_group = node_group[cols[start:start + _CONDENSE_CHUNK]]
+            valid = (row_group >= 0) & (col_group >= 0)
+            pairs = row_group[valid].astype(np.int64) * n_groups + col_group[valid]
+            if dense:
+                counts += np.bincount(pairs, minlength=n_groups * n_groups)
+            else:
+                found[n_found:n_found + len(pairs)] = pairs
+                n_found += len(pairs)
+        if dense:
+            pairs = np.flatnonzero(counts)
+            counts = counts[pairs]
+        else:  # count the pairs that occur
+            pairs, counts = np.unique(found[:n_found], return_counts=True)
+            del found
+        edges = pd.DataFrame({"row": pairs // n_groups, "col": pairs % n_groups})
+        MC = ConnectivityMatrix(edges, edge_properties={"count": counts},
+                                shape=(n_groups, n_groups), default_edge_property="count",
+                                vertex_properties=orig_vtx.reset_index())
         return MC
 
     def core_decomposition(self, str_core_label="_core_decomposition"):
