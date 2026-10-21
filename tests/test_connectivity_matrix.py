@@ -185,8 +185,8 @@ def test_random_edge_sampling():
 
 
 def _condense_by_hand(M, by_columns):
-    """The connections between each pair of groups of nodes, counted one at a time; nodes with a
-    missing value are in no group."""
+    """The connections between each pair of groups of nodes, counted one at a time, the members of
+    each group and the values that define it; nodes with a missing value are in no group."""
     keys = [None if any(pandas.isna(v) for v in row) else tuple(row)
             for row in M.vertices[by_columns].itertuples(index=False)]
     order = sorted({k for k in keys if k is not None})
@@ -195,7 +195,7 @@ def _condense_by_hand(M, by_columns):
         if keys[r] is not None and keys[c] is not None:
             counts[order.index(keys[r]), order.index(keys[c])] += 1
     members = [[i for i, k in enumerate(keys) if k == key] for key in order]
-    return counts, members
+    return counts, members, order
 
 
 def test_condense(monkeypatch):
@@ -213,9 +213,10 @@ def test_condense(monkeypatch):
         monkeypatch.setattr(test_module, "_CONDENSE_DENSE_PAIRS", dense_pairs)
         monkeypatch.setattr(test_module, "_CONDENSE_CHUNK", chunk)
         for by_columns in by_cases:
-            counts, members = _condense_by_hand(M, by_columns)
+            counts, members, groups = _condense_by_hand(M, by_columns)
             C = M.condense(by_columns)
             assert (C.array == counts).all()
+            assert list(C.vertices[by_columns].itertuples(index=False, name=None)) == groups
             assert [list(m) for m in C.vertices["_idxx_in_original"]] == members
             assert C.matrix.nnz == (counts > 0).sum()
     assert (M.condense("layer").array == M.condense(["layer"]).array).all()

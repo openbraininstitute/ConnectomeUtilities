@@ -1239,8 +1239,8 @@ class ConnectivityMatrix(object):
           A ConnectivityMatrix of the number of connections between groups of nodes
           defined by the specified list of node properties. Each group contains nodes
           associated with a unique combination of values of the properties.
-          The nodes of the return ConnectivityMatrix will be associated with a property
-          of the specified name. The values
+          The nodes of the return ConnectivityMatrix have the grouping properties, with the values
+          that define their group, and a property of the specified name. The values
           of the property are lists of indices of the contained nodes in the original ConnectivityMatrix.
 
           Connections are counted in chunks, from each node's group, so the memory needed stays small
@@ -1258,7 +1258,6 @@ class ConnectivityMatrix(object):
         # counting them needs neither a table of the edges' node properties nor a hash of every edge.
         # Edges of a node whose properties form no group (a missing value) are not counted.
         node_group = orig_vtx.index.get_indexer(keys)
-        orig_vtx.index = np.arange(n_groups)
 
         rows, cols = self._edge_indices["row"].to_numpy(), self._edge_indices["col"].to_numpy()
         dense = n_groups * n_groups <= _CONDENSE_DENSE_PAIRS
@@ -1284,7 +1283,7 @@ class ConnectivityMatrix(object):
         edges = pd.DataFrame({"row": pairs // n_groups, "col": pairs % n_groups})
         MC = ConnectivityMatrix(edges, edge_properties={"count": counts},
                                 shape=(n_groups, n_groups), default_edge_property="count",
-                                vertex_properties=orig_vtx.to_frame())
+                                vertex_properties=orig_vtx.reset_index())
         return MC
 
     def core_decomposition(self, str_core_label="_core_decomposition"):
