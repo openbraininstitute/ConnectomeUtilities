@@ -72,10 +72,10 @@ class MorphologyPathDistanceCalculator(object):
         offset = self.segment_offset_table(m)
         L = numpy.nanmax(offset, axis=1)
 
-        root_D_tbl = -numpy.ones((len(m.sections), len(m.sections)))
+        root_D_tbl = -numpy.ones((len(m.sections), len(m.sections)), dtype=numpy.float32)
         root_D_tbl[numpy.diag_indices_from(root_D_tbl)] = 0.0
         # -1 non-init; 0 same; 1 j ancestor; 2 j descendant; 3 siblings
-        relation_tbl = -numpy.ones((len(m.sections), len(m.sections)), dtype=int)
+        relation_tbl = -numpy.ones((len(m.sections), len(m.sections)), dtype=numpy.int8)
         relation_tbl[numpy.diag_indices_from(relation_tbl)] = 0
 
         def recursive_fill(called_sec, parent, with_length):
