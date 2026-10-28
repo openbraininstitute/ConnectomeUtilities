@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 """Parity of the public API against MorphologyPathDistanceCalculator on main."""
-from __future__ import annotations
-
 import numpy as np
 import pandas as pd
 import pytest

@@ -1,7 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
 """Shared fixtures and reference loader for MorphologyPathDistanceCalculator tests."""
-from __future__ import annotations
-
 import importlib.util
 import subprocess
 from pathlib import Path
