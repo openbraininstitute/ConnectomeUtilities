@@ -41,6 +41,8 @@ class MorphologyPathDistanceCalculator(object):
         root of the segment. Since different sections have different numbers of segments, all lists
         of offsets are padded with NaN and stacked to a 2d array.
 
+        Built from MorphIO's flat ``points`` / ``section_offsets`` arrays (no Section wrappers).
+
         Args:
           m (morphio.Morphology): The morphogy in question
 
@@ -50,16 +52,23 @@ class MorphologyPathDistanceCalculator(object):
           Note: sec_id is base-0, i.e. index 0 is NOT the soma. The soma is not listed
           at all (assumed to be just a point).
         """
-        def cumulative_section_length(sec):
-            seg_lengths = numpy.sqrt(numpy.sum(numpy.diff(sec.points, axis=0) ** 2, axis=1))
-            return [0] + list(numpy.cumsum(seg_lengths))
-
-        offset_lists = [cumulative_section_length(s) for s in m.sections]
-
-        L = numpy.max([len(_x) for _x in offset_lists])
-        offset_lists = [_x + [numpy.nan for _ in range(L - len(_x))] for _x in offset_lists]
-
-        return numpy.vstack(offset_lists)
+        points = numpy.asarray(m.points, dtype=float)
+        section_offsets = numpy.asarray(m.section_offsets, dtype=numpy.int64)
+        n_sec = len(section_offsets) - 1
+        n_pts_per_sec = numpy.diff(section_offsets)
+        max_pts = int(n_pts_per_sec.max()) if n_sec else 0
+        table = numpy.full((n_sec, max_pts), numpy.nan, dtype=float)
+        for i in range(n_sec):
+            start = int(section_offsets[i])
+            stop = int(section_offsets[i + 1])
+            table[i, 0] = 0.0
+            n_pts = stop - start
+            if n_pts > 1:
+                seg_lengths = numpy.sqrt(
+                    numpy.sum(numpy.diff(points[start:stop], axis=0) ** 2, axis=1)
+                )
+                table[i, 1:n_pts] = numpy.cumsum(seg_lengths)
+        return table
 
     def __initialize_tree__(self):
         """
