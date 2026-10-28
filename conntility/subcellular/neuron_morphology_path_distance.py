@@ -14,13 +14,13 @@ class SectionOffsetTable(object):
     padded dense representation. ``numpy.asarray(offset)`` materializes the dense table.
     """
 
-    def __init__(self, cumlen, section_offsets):
-        self._cumlen = numpy.asarray(cumlen, dtype=float)
-        self._section_offsets = numpy.asarray(section_offsets, dtype=numpy.int64)
+    def __init__(self, path_length_from_section_root, section_offsets):
+        self._path_length_from_section_root = path_length_from_section_root
+        self._section_offsets = section_offsets
         self._n_sections = len(self._section_offsets) - 1
-        n_pts = numpy.diff(self._section_offsets)
-        self._max_points = int(n_pts.max()) if self._n_sections else 0
-        self._n_points_per_section = n_pts
+        points_per_section = numpy.diff(self._section_offsets)
+        self._max_points = int(points_per_section.max()) if self._n_sections else 0
+        self._points_per_section = points_per_section
 
     @property
     def shape(self):
@@ -32,11 +32,13 @@ class SectionOffsetTable(object):
 
     @property
     def dtype(self):
-        return self._cumlen.dtype
+        return self._path_length_from_section_root.dtype
 
     @property
     def nbytes(self):
-        return self._cumlen.nbytes + self._section_offsets.nbytes
+        return (
+            self._path_length_from_section_root.nbytes + self._section_offsets.nbytes
+        )
 
     def __len__(self):
         return self._n_sections
@@ -45,15 +47,17 @@ class SectionOffsetTable(object):
         """Euclidean length of each section (path length to the last point)."""
         if self._n_sections == 0:
             return numpy.zeros(0, dtype=float)
-        last_point = self._section_offsets[1:] - 1
-        return self._cumlen[last_point].copy()
+        last_point_index = self._section_offsets[1:] - 1
+        return self._path_length_from_section_root[last_point_index]
 
     def to_dense(self):
         table = numpy.full(self.shape, numpy.nan, dtype=float)
-        for i in range(self._n_sections):
-            start = int(self._section_offsets[i])
-            stop = int(self._section_offsets[i + 1])
-            table[i, : stop - start] = self._cumlen[start:stop]
+        for section_id in range(self._n_sections):
+            beg = int(self._section_offsets[section_id])
+            end = int(self._section_offsets[section_id + 1])
+            table[section_id, : end - beg] = (
+                self._path_length_from_section_root[beg:end]
+            )
         return table
 
     def __array__(self, dtype=None):
@@ -65,27 +69,27 @@ class SectionOffsetTable(object):
     def __getitem__(self, key):
         if not isinstance(key, tuple) or len(key) != 2:
             raise IndexError("SectionOffsetTable requires two indices [section, segment]")
-        sec, seg = key
-        sec_arr = numpy.asarray(sec)
-        seg_arr = numpy.asarray(seg)
+        section_id, segment_id = key
+        section_id = numpy.asarray(section_id)
+        segment_id = numpy.asarray(segment_id)
         # Match ndarray negative indexing on axis 0 (soma locs use section_id-1 == -1).
-        sec_idx = numpy.where(sec_arr < 0, sec_arr + self._n_sections, sec_arr)
-        scalar = sec_arr.ndim == 0 and seg_arr.ndim == 0
+        section_id = numpy.where(section_id < 0, section_id + self._n_sections, section_id)
+        is_scalar = section_id.ndim == 0 and segment_id.ndim == 0
 
-        if scalar:
-            n_pts = int(self._n_points_per_section[int(sec_idx)])
-            seg_i = int(seg_arr)
-            if seg_i < 0 or seg_i >= n_pts:
+        if is_scalar:
+            n_points = int(self._points_per_section[int(section_id)])
+            segment_id = int(segment_id)
+            if segment_id < 0 or segment_id >= n_points:
                 return numpy.nan
-            flat = int(self._section_offsets[int(sec_idx)]) + seg_i
-            return float(self._cumlen[flat])
+            point_index = int(self._section_offsets[int(section_id)]) + segment_id
+            return float(self._path_length_from_section_root[point_index])
 
-        sec_b, seg_b = numpy.broadcast_arrays(sec_idx, seg_arr)
-        out = numpy.full(sec_b.shape, numpy.nan, dtype=float)
-        flat_b = self._section_offsets[sec_b] + seg_b
-        valid_b = (seg_b >= 0) & (seg_b < self._n_points_per_section[sec_b])
-        out[valid_b] = self._cumlen[flat_b[valid_b]]
-        return out
+        section_id, segment_id = numpy.broadcast_arrays(section_id, segment_id)
+        values = numpy.full(section_id.shape, numpy.nan, dtype=float)
+        point_index = self._section_offsets[section_id] + segment_id
+        in_range = (segment_id >= 0) & (segment_id < self._points_per_section[section_id])
+        values[in_range] = self._path_length_from_section_root[point_index[in_range]]
+        return values
 
 
 class MorphologyPathDistanceCalculator(object):
@@ -107,40 +111,25 @@ class MorphologyPathDistanceCalculator(object):
         Args:
           morphology (morphio.Morphology): The morphology you want to calculate path distances for.
         """
-        # MorphIO returns a fresh dict/lists on each connectivity access — snapshot once.
-        self._connectivity = morphology.connectivity
-        assert 0 in self._connectivity[-1], "This class requires the first section to be connected to the soma!"
         self.m = morphology
-        self._n_sections = len(morphology.section_types)
-        # Compact flat cumlen; public .offset keeps dense-table indexing semantics.
-        self.offset = self._section_offset_table(morphology)
+        # MorphIO returns a fresh dict/lists on each connectivity access — snapshot once.
+        connectivity = morphology.connectivity
+        assert 0 in connectivity[-1], (
+            "This class requires the first section to be connected to the soma!"
+        )
+        self._n_sections = morphology.n_sections
+        # Compact flat path lengths; public .offset keeps dense-table indexing semantics.
+        self.offset = _section_offset_table(morphology)
         (
-            self._parent,
-            self._root_dist,
-            self._sec_len,
-            self._tin,
-            self._tout,
-            self._up,
-        ) = self.__initialize_tree__()
-
-    @staticmethod
-    def _cumulative_point_path_lengths(m):
-        """Per-point distance from the owning section root, aligned with MorphIO points."""
-        points = m.points
-        section_offsets = m.section_offsets
-        cumlen = numpy.empty(len(points), dtype=float)
-        for i in range(len(section_offsets) - 1):
-            beg = section_offsets[i]
-            end = section_offsets[i + 1]
-            cumlen[beg] = 0.0
-            seg_lengths = numpy.sqrt(numpy.sum(numpy.diff(points[beg: end], axis=0) ** 2, axis=1))
-            cumlen[beg + 1: end] = numpy.cumsum(seg_lengths)
-        return cumlen, section_offsets
-
-    @staticmethod
-    def _section_offset_table(m):
-        cumlen, section_offsets = MorphologyPathDistanceCalculator._cumulative_point_path_lengths(m)
-        return SectionOffsetTable(cumlen, section_offsets)
+            self._parent_section,
+            self._path_length_to_section_root,
+            self._section_length,
+            self._dfs_enter,
+            self._dfs_exit,
+            self._ancestor_jump,
+        ) = _section_tree_tables(
+            connectivity, self._n_sections, self.offset.section_lengths()
+        )
 
     @staticmethod
     def segment_offset_table(m):
@@ -160,66 +149,7 @@ class MorphologyPathDistanceCalculator(object):
           Note: sec_id is base-0, i.e. index 0 is NOT the soma. The soma is not listed
           at all (assumed to be just a point).
         """
-        return MorphologyPathDistanceCalculator._section_offset_table(m).to_dense()
-
-    def __initialize_tree__(self):
-        """
-        Build O(n) section-tree tables used for on-demand path distances.
-
-        Returns:
-            parent (numpy.array): Parent section id for each section, -1 for roots.
-            root_dist (numpy.array): Path length from the soma to the first point of each section.
-            sec_len (numpy.array): Euclidean length of each section.
-            tin, tout (numpy.array): DFS discovery/finish times for O(1) ancestor tests.
-            up (numpy.array): Binary-lifting parents, shape (log n, n).
-        """
-        n = self._n_sections
-        connectivity = self._connectivity
-
-        parent = numpy.full(n, -1, dtype=numpy.int32)
-        root_dist = numpy.zeros(n, dtype=float)
-        sec_len = self.offset.section_lengths()
-        tin = numpy.full(n, -1, dtype=numpy.int32)
-        tout = numpy.full(n, -1, dtype=numpy.int32)
-
-        # connectivity is parent_id -> child section ids; -1 is the soma.
-        # Prefer this over m.sections / root_sections (those allocate Section wrappers).
-        for p, children in connectivity.items():
-            if p < 0:
-                continue
-            for child in children:
-                parent[child] = p
-
-        # Roots stay at root_dist 0 (soma treated as a point). Children attach at the
-        # end of their parent, so root_dist[child] = root_dist[parent] + sec_len[parent].
-        # Also assign DFS in/out times for ancestor queries.
-        timer = 0
-        # iterative DFS with explicit enter/exit using a stack of (node, child_index)
-        stack = deque((root, 0) for root in reversed(connectivity.get(-1, ())))
-        while stack:
-            node, idx = stack.pop()
-            children = connectivity.get(node, ())
-            if idx == 0:
-                tin[node] = timer
-                timer += 1
-                if parent[node] >= 0:
-                    root_dist[node] = root_dist[parent[node]] + sec_len[parent[node]]
-            if idx < len(children):
-                stack.append((node, idx + 1))
-                stack.append((children[idx], 0))
-            else:
-                tout[node] = timer
-                timer += 1
-
-        log_n = max(1, n.bit_length())
-        up = numpy.full((log_n, n), -1, dtype=numpy.int32)
-        up[0] = parent
-        for k in range(1, log_n):
-            prev = up[k - 1]
-            mask = prev >= 0
-            up[k, mask] = prev[prev[mask]]
-
-        return parent, root_dist, sec_len, tin, tout, up
+        return _section_offset_table(m).to_dense()
 
     def within_section_offsets(self, locs,
                                str_section_id="afferent_section_id",
@@ -244,11 +174,12 @@ class MorphologyPathDistanceCalculator(object):
         Returns:
           offsets (numpy.array): The within-section offsets in the same order as the input.
         """
-        offsets = self.offset[locs[str_section_id].values - 1, locs[str_segment_id]]
-        assert not numpy.any(numpy.isnan(offsets))
-        offsets = offsets + locs[str_offset].values
-        offsets[locs[str_section_id].values == 0] = 0.0
-        return offsets
+        section_ids = locs[str_section_id].values
+        within_section = self.offset[section_ids - 1, locs[str_segment_id]]
+        assert not numpy.any(numpy.isnan(within_section))
+        within_section = within_section + locs[str_offset].values
+        within_section[section_ids == 0] = 0.0
+        return within_section
 
     def path_distances(self, locs_from, locs_to=None,
                        str_section_id="afferent_section_id",
@@ -281,100 +212,70 @@ class MorphologyPathDistanceCalculator(object):
         if locs_to is None:
             locs_to = locs_from
 
-        o_from = self.within_section_offsets(locs_from, str_section_id=str_section_id,
-                                             str_segment_id=str_segment_id, str_offset=str_offset)
-        o_to = self.within_section_offsets(locs_to, str_section_id=str_section_id,
-                                           str_segment_id=str_segment_id, str_offset=str_offset)
+        offset_from = self.within_section_offsets(
+            locs_from,
+            str_section_id=str_section_id,
+            str_segment_id=str_segment_id,
+            str_offset=str_offset,
+        )
+        offset_to = self.within_section_offsets(
+            locs_to,
+            str_section_id=str_section_id,
+            str_segment_id=str_segment_id,
+            str_offset=str_offset,
+        )
         if same_section_only:
             # +1 for soma id 0; use cached section count (not len(m.sections)).
-            same_section = numpy.eye(self._n_sections + 1, dtype=bool)
-            same_section = same_section[numpy.ix_(locs_from[str_section_id], locs_to[str_section_id])]
-            dist = numpy.nan * numpy.ones(same_section.shape, dtype=float)
-            i, j = numpy.nonzero(same_section)
-            dist[i, j] = numpy.abs(o_from[i] - o_to[j])
-            return dist
+            on_same_section = numpy.eye(self._n_sections + 1, dtype=bool)
+            on_same_section = on_same_section[
+                numpy.ix_(locs_from[str_section_id], locs_to[str_section_id])
+            ]
+            distances = numpy.nan * numpy.ones(on_same_section.shape, dtype=float)
+            row, col = numpy.nonzero(on_same_section)
+            distances[row, col] = numpy.abs(offset_from[row] - offset_to[col])
+            return distances
 
-        sec_idx_fr = locs_from[str_section_id].to_numpy(dtype=numpy.int32, copy=True) - 1
-        sec_idx_to = locs_to[str_section_id].to_numpy(dtype=numpy.int32, copy=True) - 1
+        section_from = locs_from[str_section_id].to_numpy(dtype=numpy.int32, copy=True) - 1
+        section_to = locs_to[str_section_id].to_numpy(dtype=numpy.int32, copy=True) - 1
         # Since we test above that the first section is rooted at the soma, we can use that
         # section in place of the soma. This makes sense, because we assume the soma to be a
         # point (and consequently, within_section_offset) returns 0.0 for all locations on the soma.
-        sec_idx_fr[sec_idx_fr < 0] = 0
-        sec_idx_to[sec_idx_to < 0] = 0
+        section_from[section_from < 0] = 0
+        section_to[section_to < 0] = 0
 
-        return self._path_distances_vectorized(sec_idx_fr, sec_idx_to, o_from, o_to)
-
-    def _path_distances_vectorized(self, sec_idx_fr, sec_idx_to, o_from, o_to):
-        """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting."""
-        tin = self._tin
-        tout = self._tout
-        rd = self._root_dist
-        sec_len = self._sec_len
-        parent = self._parent
-        up = self._up
-
-        n_from = len(sec_idx_fr)
-        n_to = len(sec_idx_to)
-        sf = numpy.broadcast_to(sec_idx_fr[:, None], (n_from, n_to)).copy()
-        st = numpy.broadcast_to(sec_idx_to[None, :], (n_from, n_to)).copy()
-
-        same = sf == st
-        # rel 1: to is ancestor of from; rel 2: from is ancestor of to
-        anc_to = (tin[st] <= tin[sf]) & (tout[sf] <= tout[st]) & ~same
-        anc_fr = (tin[sf] <= tin[st]) & (tout[st] <= tout[sf]) & ~same
-        sib = ~(same | anc_to | anc_fr)
-
-        rd_f = rd[sf]
-        rd_t = rd[st]
-        root_D = numpy.zeros((n_from, n_to), dtype=float)
-        root_D[anc_to] = (rd_f - rd_t)[anc_to]
-        root_D[anc_fr] = (rd_t - rd_f)[anc_fr]
-
-        # Sibling / cousin / other-root pairs: LCA via binary lifting from `from`, then
-        # branch point at the end of the LCA section (or soma depth 0).
-        a = sf.copy()
-        for k in range(up.shape[0] - 1, -1, -1):
-            ak = numpy.where(a >= 0, up[k, numpy.maximum(a, 0)], -1)
-            is_anc = (
-                (ak >= 0)
-                & (tin[numpy.maximum(ak, 0)] <= tin[st])
-                & (tout[st] <= tout[numpy.maximum(ak, 0)])
-            )
-            need = sib & (a >= 0) & (ak >= 0) & ~is_anc
-            a[need] = ak[need]
-        lca = numpy.where(a >= 0, parent[a], -1)
-        branch = numpy.zeros((n_from, n_to), dtype=float)
-        valid = sib & (lca >= 0)
-        branch[valid] = (rd[lca] + sec_len[lca])[valid]
-        root_D[sib] = (rd_f + rd_t - 2.0 * branch)[sib]
-
-        of = o_from[:, None]
-        ot = o_to[None, :]
-        dist = numpy.empty((n_from, n_to), dtype=float)
-        dist[same] = numpy.abs(of - ot)[same]
-        dist[anc_to] = (root_D + of - ot)[anc_to]
-        dist[anc_fr] = (root_D - of + ot)[anc_fr]
-        dist[sib] = (root_D + of + ot)[sib]
-        return dist
+        return _path_distances_vectorized(
+            section_from,
+            section_to,
+            offset_from,
+            offset_to,
+            self._dfs_enter,
+            self._dfs_exit,
+            self._path_length_to_section_root,
+            self._section_length,
+            self._parent_section,
+            self._ancestor_jump,
+        )
 
     @staticmethod
-    def __nnd__(D, _idxx):
-        if len(_idxx) <= 1:
+    def __nnd__(distance_matrix, location_indices):
+        if len(location_indices) <= 1:
             return numpy.nan
-        return numpy.nanmin(D[numpy.ix_(_idxx, _idxx)], axis=0)
+        return numpy.nanmin(
+            distance_matrix[numpy.ix_(location_indices, location_indices)], axis=0
+        )
 
     @staticmethod
     def __rnd_sampler__(locs, prop_col, n_rnd):
         import pandas
         if prop_col is None:
-            tbl = locs["index"].reset_index(drop=True)
+            locations_by_key = locs["index"].reset_index(drop=True)
         else:
-            tbl = locs.set_index(prop_col)["index"]
-        tbl_idx = pandas.Series(numpy.unique(tbl.index))
+            locations_by_key = locs.set_index(prop_col)["index"]
+        sample_keys = pandas.Series(numpy.unique(locations_by_key.index))
 
-        def sampler(N):
+        def sampler(sample_size):
             for _ in range(n_rnd):
-                yield tbl[tbl_idx.sample(N)].values
+                yield locations_by_key[sample_keys.sample(sample_size)].values
         return sampler
 
     def nearest_neighbor_distances(self, locs, normalize=False,
@@ -436,20 +337,231 @@ class MorphologyPathDistanceCalculator(object):
 
         Examples
         """
-        D = self.path_distances(locs, str_section_id=str_section_id,
-                                str_segment_id=str_segment_id, str_offset=str_offset,
-                                same_section_only=same_section_only)
-        numpy.fill_diagonal(D, numpy.nan)
+        pairwise_distances = self.path_distances(
+            locs,
+            str_section_id=str_section_id,
+            str_segment_id=str_segment_id,
+            str_offset=str_offset,
+            same_section_only=same_section_only,
+        )
+        numpy.fill_diagonal(pairwise_distances, numpy.nan)
         index_names = list(locs.index.names)
         assert "index" not in index_names
         locs = locs.reset_index().reset_index()
-        data = locs.groupby(index_names)["index"].apply(lambda _s: self.__nnd__(D, _s))
+        observed = locs.groupby(index_names)["index"].apply(
+            lambda indices: self.__nnd__(pairwise_distances, indices)
+        )
         if not normalize:
-            return data
+            return observed
 
         sampler = self.__rnd_sampler__(locs, normalize_preserve, normalize_n)
         if normalize_preserve is None:
             normalize_preserve = "index"
-        counts = locs.groupby(index_names)[normalize_preserve].apply(lambda x: len(x.drop_duplicates()))
-        ctrl = counts.apply(lambda c: numpy.hstack([self.__nnd__(D, _s) for _s in sampler(c)]))
-        return data.combine(ctrl, lambda _d, _c: (numpy.nanmean(_d) - numpy.nanmean(_c)) / numpy.nanstd(_c))
+        sample_sizes = locs.groupby(index_names)[normalize_preserve].apply(
+            lambda values: len(values.drop_duplicates())
+        )
+        controls = sample_sizes.apply(
+            lambda size: numpy.hstack(
+                [self.__nnd__(pairwise_distances, indices) for indices in sampler(size)]
+            )
+        )
+        return observed.combine(
+            controls,
+            lambda observed_values, control_values: (
+                (numpy.nanmean(observed_values) - numpy.nanmean(control_values))
+                / numpy.nanstd(control_values)
+            ),
+        )
+
+
+def _cumulative_point_path_lengths(morphology):
+    """Per-point distance from the owning section root, aligned with MorphIO points."""
+    points = morphology.points
+    section_offsets = morphology.section_offsets
+    path_length_from_section_root = numpy.empty(len(points), dtype=float)
+    for section_id in range(len(section_offsets) - 1):
+        beg = section_offsets[section_id]
+        end = section_offsets[section_id + 1]
+        path_length_from_section_root[beg] = 0.0
+        segment_lengths = numpy.sqrt(
+            numpy.sum(
+                numpy.diff(points[beg:end], axis=0) ** 2,
+                axis=1,
+            )
+        )
+        path_length_from_section_root[beg + 1:end] = numpy.cumsum(segment_lengths)
+    return path_length_from_section_root, section_offsets
+
+
+def _section_offset_table(morphology):
+    path_length_from_section_root, section_offsets = _cumulative_point_path_lengths(
+        morphology
+    )
+    return SectionOffsetTable(path_length_from_section_root, section_offsets)
+
+
+def _section_tree_tables(connectivity, n_sections, section_length):
+    """
+    Build O(n) section-tree tables used for on-demand path distances.
+
+    ``connectivity`` must already be snapshotted from MorphIO (each access allocates).
+
+    Returns:
+        parent_section: Parent section id for each section, -1 for roots.
+        path_length_to_section_root: Path length from the soma to each section's first point.
+        section_length: Euclidean length of each section (same array as passed in).
+        dfs_enter, dfs_exit: DFS enter/exit times for O(1) ancestor tests.
+        ancestor_jump: Binary-lifting table; ancestor_jump[k, i] is the 2**k-th ancestor of i.
+    """
+    parent_section = numpy.full(n_sections, -1, dtype=numpy.int32)
+    path_length_to_section_root = numpy.zeros(n_sections, dtype=float)
+    dfs_enter = numpy.full(n_sections, -1, dtype=numpy.int32)
+    dfs_exit = numpy.full(n_sections, -1, dtype=numpy.int32)
+
+    # connectivity is parent_id -> child section ids; -1 is the soma.
+    # Prefer this over m.sections / root_sections (those allocate Section wrappers).
+    for parent_id, child_ids in connectivity.items():
+        if parent_id < 0:
+            continue
+        for child_id in child_ids:
+            parent_section[child_id] = parent_id
+
+    # Roots stay at path length 0 (soma treated as a point). Children attach at the
+    # end of their parent, so path_to_root[child] = path_to_root[parent] + length[parent].
+    # The same walk records DFS enter/exit times for ancestor queries.
+    dfs_clock = 0
+    stack = deque(
+        (root_id, 0) for root_id in reversed(connectivity.get(-1, ()))
+    )
+    while stack:
+        section_id, next_child_index = stack.pop()
+        child_ids = connectivity.get(section_id, ())
+        if next_child_index == 0:
+            dfs_enter[section_id] = dfs_clock
+            dfs_clock += 1
+            parent_id = parent_section[section_id]
+            if parent_id >= 0:
+                path_length_to_section_root[section_id] = (
+                    path_length_to_section_root[parent_id] + section_length[parent_id]
+                )
+        if next_child_index < len(child_ids):
+            stack.append((section_id, next_child_index + 1))
+            stack.append((child_ids[next_child_index], 0))
+        else:
+            dfs_exit[section_id] = dfs_clock
+            dfs_clock += 1
+
+    n_jumps = max(1, n_sections.bit_length())
+    ancestor_jump = numpy.full((n_jumps, n_sections), -1, dtype=numpy.int32)
+    ancestor_jump[0] = parent_section
+    for jump_level in range(1, n_jumps):
+        previous_jump = ancestor_jump[jump_level - 1]
+        has_ancestor = previous_jump >= 0
+        ancestor_jump[jump_level, has_ancestor] = previous_jump[
+            previous_jump[has_ancestor]
+        ]
+
+    return (
+        parent_section,
+        path_length_to_section_root,
+        section_length,
+        dfs_enter,
+        dfs_exit,
+        ancestor_jump,
+    )
+
+
+def _path_distances_vectorized(
+    section_from,
+    section_to,
+    offset_from,
+    offset_to,
+    dfs_enter,
+    dfs_exit,
+    path_length_to_section_root,
+    section_length,
+    parent_section,
+    ancestor_jump,
+):
+    """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting."""
+    n_from = len(section_from)
+    n_to = len(section_to)
+    section_from = numpy.broadcast_to(
+        section_from[:, None], (n_from, n_to)
+    ).copy()
+    section_to = numpy.broadcast_to(
+        section_to[None, :], (n_from, n_to)
+    ).copy()
+
+    on_same_section = section_from == section_to
+    # to is ancestor of from / from is ancestor of to (strict)
+    to_is_ancestor = (
+        (dfs_enter[section_to] <= dfs_enter[section_from])
+        & (dfs_exit[section_from] <= dfs_exit[section_to])
+        & ~on_same_section
+    )
+    from_is_ancestor = (
+        (dfs_enter[section_from] <= dfs_enter[section_to])
+        & (dfs_exit[section_to] <= dfs_exit[section_from])
+        & ~on_same_section
+    )
+    are_collaterals = ~(on_same_section | to_is_ancestor | from_is_ancestor)
+
+    path_from_root = path_length_to_section_root[section_from]
+    path_to_root_at_to = path_length_to_section_root[section_to]
+    section_root_distance = numpy.zeros((n_from, n_to), dtype=float)
+    section_root_distance[to_is_ancestor] = (
+        path_from_root - path_to_root_at_to
+    )[to_is_ancestor]
+    section_root_distance[from_is_ancestor] = (
+        path_to_root_at_to - path_from_root
+    )[from_is_ancestor]
+
+    # Collaterals / cousins / other roots: LCA via binary lifting from `from`, then
+    # branch point at the end of the LCA section (or soma depth 0).
+    climb_from = section_from.copy()
+    for jump_level in range(ancestor_jump.shape[0] - 1, -1, -1):
+        jumped = numpy.where(
+            climb_from >= 0,
+            ancestor_jump[jump_level, numpy.maximum(climb_from, 0)],
+            -1,
+        )
+        jumped_is_ancestor_of_to = (
+            (jumped >= 0)
+            & (dfs_enter[numpy.maximum(jumped, 0)] <= dfs_enter[section_to])
+            & (dfs_exit[section_to] <= dfs_exit[numpy.maximum(jumped, 0)])
+        )
+        should_jump = (
+            are_collaterals
+            & (climb_from >= 0)
+            & (jumped >= 0)
+            & ~jumped_is_ancestor_of_to
+        )
+        climb_from[should_jump] = jumped[should_jump]
+    lowest_common_ancestor = numpy.where(
+        climb_from >= 0, parent_section[climb_from], -1
+    )
+    branch_path_length = numpy.zeros((n_from, n_to), dtype=float)
+    has_section_lca = are_collaterals & (lowest_common_ancestor >= 0)
+    branch_path_length[has_section_lca] = (
+        path_length_to_section_root[lowest_common_ancestor]
+        + section_length[lowest_common_ancestor]
+    )[has_section_lca]
+    section_root_distance[are_collaterals] = (
+        path_from_root + path_to_root_at_to - 2.0 * branch_path_length
+    )[are_collaterals]
+
+    offset_from = offset_from[:, None]
+    offset_to = offset_to[None, :]
+    distances = numpy.empty((n_from, n_to), dtype=float)
+    distances[on_same_section] = numpy.abs(offset_from - offset_to)[on_same_section]
+    distances[to_is_ancestor] = (
+        section_root_distance + offset_from - offset_to
+    )[to_is_ancestor]
+    distances[from_is_ancestor] = (
+        section_root_distance - offset_from + offset_to
+    )[from_is_ancestor]
+    distances[are_collaterals] = (
+        section_root_distance + offset_from + offset_to
+    )[are_collaterals]
+    return distances
