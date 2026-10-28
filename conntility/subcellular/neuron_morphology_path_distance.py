@@ -176,10 +176,13 @@ class MorphologyPathDistanceCalculator(object):
         Returns:
           offsets (numpy.array): The within-section offsets in the same order as the input.
         """
-        section_ids = locs[str_section_id].values
-        within_section = self.offset[section_ids - 1, locs[str_segment_id]]
+        section_ids = locs[str_section_id].to_numpy()
+        segment_ids = locs[str_segment_id].to_numpy()
+        segment_offs = locs[str_offset].to_numpy()
+        # ``offset[...]`` returns a new writeable float buffer.
+        within_section = self.offset[section_ids - 1, segment_ids]
         assert not numpy.any(numpy.isnan(within_section))
-        within_section = within_section + locs[str_offset].values
+        within_section += segment_offs
         within_section[section_ids == 0] = 0.0
         return within_section
 
@@ -497,10 +500,6 @@ def _path_distances_vectorized(
     exit_from = dfs_exit[section_from][:, None]
     enter_to = dfs_enter[section_to][None, :]
     exit_to = dfs_exit[section_to][None, :]
-    path_from = path_length_to_section_root[section_from][:, None]
-    path_to = path_length_to_section_root[section_to][None, :]
-    off_from = offset_from[:, None]
-    off_to = offset_to[None, :]
 
     same = section_from[:, None] == section_to[None, :]
     to_anc = (enter_to <= enter_from) & (exit_from <= exit_to) & ~same
