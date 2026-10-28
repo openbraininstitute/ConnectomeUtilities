@@ -232,7 +232,7 @@ class MorphologyPathDistanceCalculator(object):
             on_same_section = on_same_section[
                 numpy.ix_(locs_from[str_section_id], locs_to[str_section_id])
             ]
-            distances = numpy.nan * numpy.ones(on_same_section.shape, dtype=float)
+            distances = numpy.full(on_same_section.shape, numpy.nan, dtype=float)
             row, col = numpy.nonzero(on_same_section)
             distances[row, col] = numpy.abs(offset_from[row] - offset_to[col])
             return distances
