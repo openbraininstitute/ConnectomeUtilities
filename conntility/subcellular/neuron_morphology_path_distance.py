@@ -54,11 +54,11 @@ class MorphologyPathDistanceCalculator(object):
             seg_lengths = numpy.sqrt(numpy.sum(numpy.diff(sec.points, axis=0) ** 2, axis=1))
             return [0] + list(numpy.cumsum(seg_lengths))
 
-        offset_lists = [cumulative_section_length(_sec)
-                        for _sec in m.sections]
+        offset_lists = [cumulative_section_length(s) for s in m.sections]
+
         L = numpy.max([len(_x) for _x in offset_lists])
-        offset_lists = [_x + [numpy.nan for _ in range(L - len(_x))]
-                        for _x in offset_lists]
+        offset_lists = [_x + [numpy.nan for _ in range(L - len(_x))] for _x in offset_lists]
+
         return numpy.vstack(offset_lists)
 
     def __initialize_tree__(self):
