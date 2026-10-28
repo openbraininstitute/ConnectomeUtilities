@@ -485,85 +485,93 @@ def _path_distances_vectorized(
     parent_section,
     ancestor_jump,
 ):
-    """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting."""
+    """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting.
+
+    Keeps section ids / depths / offsets as row or column vectors and reuses a small
+    set of (n_from, n_to) work buffers instead of copying broadcast grids and
+    allocating a new mask on every expression.
+    """
     n_from = len(section_from)
     n_to = len(section_to)
-    section_from = numpy.broadcast_to(
-        section_from[:, None], (n_from, n_to)
-    ).copy()
-    section_to = numpy.broadcast_to(
-        section_to[None, :], (n_from, n_to)
-    ).copy()
 
-    on_same_section = section_from == section_to
-    # to is ancestor of from / from is ancestor of to (strict)
-    to_is_ancestor = (
-        (dfs_enter[section_to] <= dfs_enter[section_from])
-        & (dfs_exit[section_from] <= dfs_exit[section_to])
-        & ~on_same_section
-    )
-    from_is_ancestor = (
-        (dfs_enter[section_from] <= dfs_enter[section_to])
-        & (dfs_exit[section_to] <= dfs_exit[section_from])
-        & ~on_same_section
-    )
-    are_collaterals = ~(on_same_section | to_is_ancestor | from_is_ancestor)
+    # Row / column views — no full (n_from, n_to) copies of section ids.
+    enter_from = dfs_enter[section_from][:, None]
+    exit_from = dfs_exit[section_from][:, None]
+    enter_to = dfs_enter[section_to][None, :]
+    exit_to = dfs_exit[section_to][None, :]
+    path_from = path_length_to_section_root[section_from][:, None]
+    path_to = path_length_to_section_root[section_to][None, :]
+    off_from = offset_from[:, None]
+    off_to = offset_to[None, :]
 
-    path_from_root = path_length_to_section_root[section_from]
-    path_to_root_at_to = path_length_to_section_root[section_to]
-    section_root_distance = numpy.zeros((n_from, n_to), dtype=float)
-    section_root_distance[to_is_ancestor] = (
-        path_from_root - path_to_root_at_to
-    )[to_is_ancestor]
-    section_root_distance[from_is_ancestor] = (
-        path_to_root_at_to - path_from_root
-    )[from_is_ancestor]
+    same = section_from[:, None] == section_to[None, :]
+    to_anc = (enter_to <= enter_from) & (exit_from <= exit_to) & ~same
+    from_anc = (enter_from <= enter_to) & (exit_to <= exit_from) & ~same
+    coll = ~(same | to_anc | from_anc)
 
-    # Collaterals / cousins / other roots: LCA via binary lifting from `from`, then
-    # branch point at the end of the LCA section (or soma depth 0).
-    climb_from = section_from.copy()
+    # One writable int grid for LCA climb; ``jumped`` reused each lifting step.
+    climb = numpy.empty((n_from, n_to), dtype=section_from.dtype)
+    climb[:] = section_from[:, None]
+    jumped = numpy.empty_like(climb)
+    safe = numpy.empty_like(climb)
+
     for jump_level in range(ancestor_jump.shape[0] - 1, -1, -1):
-        jumped = numpy.where(
-            climb_from >= 0,
-            ancestor_jump[jump_level, numpy.maximum(climb_from, 0)],
-            -1,
-        )
+        numpy.maximum(climb, 0, out=safe)
+        jumped[:] = ancestor_jump[jump_level, safe]
+        jumped[climb < 0] = -1
+        numpy.maximum(jumped, 0, out=safe)
         jumped_is_ancestor_of_to = (
             (jumped >= 0)
-            & (dfs_enter[numpy.maximum(jumped, 0)] <= dfs_enter[section_to])
-            & (dfs_exit[section_to] <= dfs_exit[numpy.maximum(jumped, 0)])
+            & (dfs_enter[safe] <= enter_to)
+            & (exit_to <= dfs_exit[safe])
         )
         should_jump = (
-            are_collaterals
-            & (climb_from >= 0)
-            & (jumped >= 0)
-            & ~jumped_is_ancestor_of_to
+            coll & (climb >= 0) & (jumped >= 0) & ~jumped_is_ancestor_of_to
         )
-        climb_from[should_jump] = jumped[should_jump]
-    lowest_common_ancestor = numpy.where(
-        climb_from >= 0, parent_section[climb_from], -1
-    )
-    branch_path_length = numpy.zeros((n_from, n_to), dtype=float)
-    has_section_lca = are_collaterals & (lowest_common_ancestor >= 0)
-    branch_path_length[has_section_lca] = (
-        path_length_to_section_root[lowest_common_ancestor]
-        + section_length[lowest_common_ancestor]
-    )[has_section_lca]
-    section_root_distance[are_collaterals] = (
-        path_from_root + path_to_root_at_to - 2.0 * branch_path_length
-    )[are_collaterals]
+        climb[should_jump] = jumped[should_jump]
 
-    offset_from = offset_from[:, None]
-    offset_to = offset_to[None, :]
+    # Reuse ``jumped`` for LCA section id (-1 = soma / no section LCA).
+    jumped[:] = -1
+    valid_climb = climb >= 0
+    jumped[valid_climb] = parent_section[climb[valid_climb]]
+    lca = jumped
+
+    # Fill the result by case using nonzero indices so broadcasted expressions
+    # are not materialized as full (n_from, n_to) float temporaries.
     distances = numpy.empty((n_from, n_to), dtype=float)
-    distances[on_same_section] = numpy.abs(offset_from - offset_to)[on_same_section]
-    distances[to_is_ancestor] = (
-        section_root_distance + offset_from - offset_to
-    )[to_is_ancestor]
-    distances[from_is_ancestor] = (
-        section_root_distance - offset_from + offset_to
-    )[from_is_ancestor]
-    distances[are_collaterals] = (
-        section_root_distance + offset_from + offset_to
-    )[are_collaterals]
+
+    rows, cols = numpy.nonzero(same)
+    distances[rows, cols] = numpy.abs(offset_from[rows] - offset_to[cols])
+
+    rows, cols = numpy.nonzero(to_anc)
+    distances[rows, cols] = (
+        path_length_to_section_root[section_from[rows]]
+        - path_length_to_section_root[section_to[cols]]
+        + offset_from[rows]
+        - offset_to[cols]
+    )
+
+    rows, cols = numpy.nonzero(from_anc)
+    distances[rows, cols] = (
+        path_length_to_section_root[section_to[cols]]
+        - path_length_to_section_root[section_from[rows]]
+        - offset_from[rows]
+        + offset_to[cols]
+    )
+
+    rows, cols = numpy.nonzero(coll)
+    lca_ids = lca[rows, cols]
+    branch = numpy.zeros(len(lca_ids), dtype=float)
+    has_section_lca = lca_ids >= 0
+    branch[has_section_lca] = (
+        path_length_to_section_root[lca_ids[has_section_lca]]
+        + section_length[lca_ids[has_section_lca]]
+    )
+    distances[rows, cols] = (
+        path_length_to_section_root[section_from[rows]]
+        + path_length_to_section_root[section_to[cols]]
+        - 2.0 * branch
+        + offset_from[rows]
+        + offset_to[cols]
+    )
     return distances
