@@ -22,8 +22,11 @@ class MorphologyPathDistanceCalculator(object):
         Args:
           morphology (morphio.Morphology): The morphology you want to calculate path distances for.
         """
-        assert 0 in morphology.connectivity[-1], "This class requires the first section to be connected to the soma!"
+        # MorphIO returns a fresh dict/lists on each connectivity access — snapshot once.
+        self._connectivity = morphology.connectivity
+        assert 0 in self._connectivity[-1], "This class requires the first section to be connected to the soma!"
         self.m = morphology
+        self._n_sections = len(morphology.section_types)
         self.offset = self.segment_offset_table(morphology)
         (
             self._parent,
@@ -81,17 +84,17 @@ class MorphologyPathDistanceCalculator(object):
             tin, tout (numpy.array): DFS discovery/finish times for O(1) ancestor tests.
             up (numpy.array): Binary-lifting parents, shape (log n, n).
         """
-        m = self.m
-        n = len(self.offset)
-        connectivity = m.connectivity
+        n = self._n_sections
+        connectivity = self._connectivity
 
         parent = numpy.full(n, -1, dtype=numpy.int32)
         root_dist = numpy.zeros(n, dtype=float)
-        sec_len = numpy.nanmax(self.offset, axis=1)
+        sec_len = numpy.nanmax(numpy.asarray(self.offset, dtype=float), axis=1)
         tin = numpy.full(n, -1, dtype=numpy.int32)
         tout = numpy.full(n, -1, dtype=numpy.int32)
 
         # connectivity is parent_id -> child section ids; -1 is the soma.
+        # Prefer this over m.sections / root_sections (those allocate Section wrappers).
         for p, children in connectivity.items():
             if p < 0:
                 continue
@@ -194,7 +197,8 @@ class MorphologyPathDistanceCalculator(object):
         o_to = self.within_section_offsets(locs_to, str_section_id=str_section_id,
                                            str_segment_id=str_segment_id, str_offset=str_offset)
         if same_section_only:
-            same_section = numpy.eye(len(self.m.sections) + 1, dtype=bool)
+            # +1 for soma id 0; use cached section count (not len(m.sections)).
+            same_section = numpy.eye(self._n_sections + 1, dtype=bool)
             same_section = same_section[numpy.ix_(locs_from[str_section_id], locs_to[str_section_id])]
             dist = numpy.nan * numpy.ones(same_section.shape, dtype=float)
             i, j = numpy.nonzero(same_section)
