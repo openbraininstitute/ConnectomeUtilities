@@ -4,6 +4,9 @@ from collections import deque
 import morphio
 import numpy
 
+# Match historical MorphologyPathDistanceCalculator.path_distances output (main used float32 D).
+_FLOAT_DTYPE = numpy.float32
+
 
 class SectionOffsetTable(object):
     """
@@ -46,12 +49,12 @@ class SectionOffsetTable(object):
     def section_lengths(self):
         """Euclidean length of each section (path length to the last point)."""
         if self._n_sections == 0:
-            return numpy.zeros(0, dtype=float)
+            return numpy.zeros(0, dtype=_FLOAT_DTYPE)
         last_point_index = self._section_offsets[1:] - 1
         return self._path_length_from_section_root[last_point_index]
 
     def to_dense(self):
-        table = numpy.full(self.shape, numpy.nan, dtype=float)
+        table = numpy.full(self.shape, numpy.nan, dtype=_FLOAT_DTYPE)
         for section_id in range(self._n_sections):
             beg = int(self._section_offsets[section_id])
             end = int(self._section_offsets[section_id + 1])
@@ -87,7 +90,7 @@ class SectionOffsetTable(object):
         section_id, segment_id = numpy.broadcast_arrays(section_id, segment_id)
         section_id = section_id.astype(numpy.int64, copy=False)
         segment_id = segment_id.astype(numpy.int64, copy=False)
-        values = numpy.full(section_id.shape, numpy.nan, dtype=float)
+        values = numpy.full(section_id.shape, numpy.nan, dtype=_FLOAT_DTYPE)
         point_index = self._section_offsets[section_id] + segment_id
         in_range = (segment_id >= 0) & (segment_id < self._points_per_section[section_id])
         values[in_range] = self._path_length_from_section_root[point_index[in_range]]
@@ -182,7 +185,7 @@ class MorphologyPathDistanceCalculator(object):
         # ``offset[...]`` returns a new writeable float buffer.
         within_section = self.offset[section_ids - 1, segment_ids]
         assert not numpy.any(numpy.isnan(within_section))
-        within_section += segment_offs
+        within_section += numpy.asarray(segment_offs, dtype=_FLOAT_DTYPE)
         within_section[section_ids == 0] = 0.0
         return within_section
 
@@ -233,7 +236,7 @@ class MorphologyPathDistanceCalculator(object):
             section_ids_from = locs_from[str_section_id].to_numpy()
             section_ids_to = locs_to[str_section_id].to_numpy()
             on_same_section = section_ids_from[:, None] == section_ids_to[None, :]
-            distances = numpy.full(on_same_section.shape, numpy.nan, dtype=float)
+            distances = numpy.full(on_same_section.shape, numpy.nan, dtype=_FLOAT_DTYPE)
             row, col = numpy.nonzero(on_same_section)
             distances[row, col] = numpy.abs(offset_from[row] - offset_to[col])
             return distances
@@ -381,7 +384,7 @@ def _cumulative_point_path_lengths(morphology):
     """Per-point distance from the owning section root, aligned with MorphIO points."""
     points = morphology.points
     section_offsets = morphology.section_offsets
-    path_length_from_section_root = numpy.empty(len(points), dtype=float)
+    path_length_from_section_root = numpy.empty(len(points), dtype=_FLOAT_DTYPE)
     for section_id in range(len(section_offsets) - 1):
         beg = section_offsets[section_id]
         end = section_offsets[section_id + 1]
@@ -417,7 +420,7 @@ def _section_tree_tables(connectivity, n_sections, section_length):
         ancestor_jump: Binary-lifting table; ancestor_jump[k, i] is the 2**k-th ancestor of i.
     """
     parent_section = numpy.full(n_sections, -1, dtype=numpy.int32)
-    path_length_to_section_root = numpy.zeros(n_sections, dtype=float)
+    path_length_to_section_root = numpy.zeros(n_sections, dtype=_FLOAT_DTYPE)
     dfs_enter = numpy.full(n_sections, -1, dtype=numpy.int32)
     dfs_exit = numpy.full(n_sections, -1, dtype=numpy.int32)
 
@@ -474,11 +477,9 @@ def _section_tree_tables(connectivity, n_sections, section_length):
     )
 
 
-def _path_distances_vectorized(
+def _section_pair_relations_and_root_distances(
     section_from,
     section_to,
-    offset_from,
-    offset_to,
     dfs_enter,
     dfs_exit,
     path_length_to_section_root,
@@ -486,16 +487,16 @@ def _path_distances_vectorized(
     parent_section,
     ancestor_jump,
 ):
-    """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting.
+    """Relation masks and section-start distances for every (from, to) section pair.
 
-    Keeps section ids / depths / offsets as row or column vectors and reuses a small
-    set of (n_from, n_to) work buffers instead of copying broadcast grids and
-    allocating a new mask on every expression.
+    Returns:
+        same, to_anc, from_anc, coll: bool arrays shaped (n_from, n_to)
+        root_distance: float array shaped (n_from, n_to) — path length between section
+            starts (0 on the diagonal / same-section pairs).
     """
     n_from = len(section_from)
     n_to = len(section_to)
 
-    # Row / column views — no full (n_from, n_to) copies of section ids.
     enter_from = dfs_enter[section_from][:, None]
     exit_from = dfs_exit[section_from][:, None]
     enter_to = dfs_enter[section_to][None, :]
@@ -506,7 +507,6 @@ def _path_distances_vectorized(
     from_anc = (enter_from <= enter_to) & (exit_to <= exit_from) & ~same
     coll = ~(same | to_anc | from_anc)
 
-    # One writable int grid for LCA climb; ``jumped`` reused each lifting step.
     climb = numpy.empty((n_from, n_to), dtype=section_from.dtype)
     climb[:] = section_from[:, None]
     jumped = numpy.empty_like(climb)
@@ -527,48 +527,186 @@ def _path_distances_vectorized(
         )
         climb[should_jump] = jumped[should_jump]
 
-    # Reuse ``jumped`` for LCA section id (-1 = soma / no section LCA).
     jumped[:] = -1
     valid_climb = climb >= 0
     jumped[valid_climb] = parent_section[climb[valid_climb]]
     lca = jumped
 
-    # Fill the result by case using nonzero indices so broadcasted expressions
-    # are not materialized as full (n_from, n_to) float temporaries.
-    distances = numpy.empty((n_from, n_to), dtype=float)
+    path_from = path_length_to_section_root[section_from][:, None]
+    path_to = path_length_to_section_root[section_to][None, :]
+    root_distance = numpy.zeros((n_from, n_to), dtype=_FLOAT_DTYPE)
+    root_distance[to_anc] = (path_from - path_to)[to_anc]
+    root_distance[from_anc] = (path_to - path_from)[from_anc]
+
+    rows, cols = numpy.nonzero(coll)
+    lca_ids = lca[rows, cols]
+    branch = numpy.zeros(len(lca_ids), dtype=_FLOAT_DTYPE)
+    has_section_lca = lca_ids >= 0
+    branch[has_section_lca] = (
+        path_length_to_section_root[lca_ids[has_section_lca]]
+        + section_length[lca_ids[has_section_lca]]
+    )
+    root_distance[rows, cols] = (
+        path_length_to_section_root[section_from[rows]]
+        + path_length_to_section_root[section_to[cols]]
+        - 2.0 * branch
+    )
+    return same, to_anc, from_anc, coll, root_distance
+
+
+def _apply_offsets_to_section_distances(
+    same, to_anc, from_anc, coll, root_distance, offset_from, offset_to
+):
+    """Combine section-start distances with within-section offsets into point distances."""
+    n_from = len(offset_from)
+    n_to = len(offset_to)
+    distances = numpy.empty((n_from, n_to), dtype=_FLOAT_DTYPE)
 
     rows, cols = numpy.nonzero(same)
     distances[rows, cols] = numpy.abs(offset_from[rows] - offset_to[cols])
 
     rows, cols = numpy.nonzero(to_anc)
     distances[rows, cols] = (
-        path_length_to_section_root[section_from[rows]]
-        - path_length_to_section_root[section_to[cols]]
-        + offset_from[rows]
-        - offset_to[cols]
+        root_distance[rows, cols] + offset_from[rows] - offset_to[cols]
     )
 
     rows, cols = numpy.nonzero(from_anc)
     distances[rows, cols] = (
-        path_length_to_section_root[section_to[cols]]
-        - path_length_to_section_root[section_from[rows]]
-        - offset_from[rows]
-        + offset_to[cols]
+        root_distance[rows, cols] - offset_from[rows] + offset_to[cols]
     )
 
     rows, cols = numpy.nonzero(coll)
-    lca_ids = lca[rows, cols]
-    branch = numpy.zeros(len(lca_ids), dtype=float)
-    has_section_lca = lca_ids >= 0
-    branch[has_section_lca] = (
-        path_length_to_section_root[lca_ids[has_section_lca]]
-        + section_length[lca_ids[has_section_lca]]
-    )
     distances[rows, cols] = (
-        path_length_to_section_root[section_from[rows]]
-        + path_length_to_section_root[section_to[cols]]
-        - 2.0 * branch
-        + offset_from[rows]
-        + offset_to[cols]
+        root_distance[rows, cols] + offset_from[rows] + offset_to[cols]
     )
+    return distances
+
+
+def _path_distances_vectorized(
+    section_from,
+    section_to,
+    offset_from,
+    offset_to,
+    dfs_enter,
+    dfs_exit,
+    path_length_to_section_root,
+    section_length,
+    parent_section,
+    ancestor_jump,
+):
+    """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting."""
+    same, to_anc, from_anc, coll, root_distance = (
+        _section_pair_relations_and_root_distances(
+            section_from,
+            section_to,
+            dfs_enter,
+            dfs_exit,
+            path_length_to_section_root,
+            section_length,
+            parent_section,
+            ancestor_jump,
+        )
+    )
+    return _apply_offsets_to_section_distances(
+        same, to_anc, from_anc, coll, root_distance, offset_from, offset_to
+    )
+
+
+def _path_distances_row_chunked(
+    section_from,
+    section_to,
+    offset_from,
+    offset_to,
+    dfs_enter,
+    dfs_exit,
+    path_length_to_section_root,
+    section_length,
+    parent_section,
+    ancestor_jump,
+    row_chunk_size=32,
+):
+    """Same result as ``_path_distances_vectorized``, evaluating a few from-rows at a time."""
+    n_from = len(section_from)
+    n_to = len(section_to)
+    distances = numpy.empty((n_from, n_to), dtype=_FLOAT_DTYPE)
+    for start in range(0, n_from, row_chunk_size):
+        stop = min(start + row_chunk_size, n_from)
+        distances[start:stop] = _path_distances_vectorized(
+            section_from[start:stop],
+            section_to,
+            offset_from[start:stop],
+            offset_to,
+            dfs_enter,
+            dfs_exit,
+            path_length_to_section_root,
+            section_length,
+            parent_section,
+            ancestor_jump,
+        )
+    return distances
+
+
+def _path_distances_via_sections(
+    section_from,
+    section_to,
+    offset_from,
+    offset_to,
+    dfs_enter,
+    dfs_exit,
+    path_length_to_section_root,
+    section_length,
+    parent_section,
+    ancestor_jump,
+    row_chunk_size=32,
+):
+    """LCA on unique section pairs, then apply per-point offsets in row chunks.
+
+    Scratch for the expensive LCA step scales with
+    ``#unique_from × #unique_to`` instead of ``n_from × n_to``.
+    """
+    unique_from, inv_from = numpy.unique(section_from, return_inverse=True)
+    unique_to, inv_to = numpy.unique(section_to, return_inverse=True)
+    same_u, to_anc_u, from_anc_u, coll_u, root_u = (
+        _section_pair_relations_and_root_distances(
+            unique_from,
+            unique_to,
+            dfs_enter,
+            dfs_exit,
+            path_length_to_section_root,
+            section_length,
+            parent_section,
+            ancestor_jump,
+        )
+    )
+
+    n_from = len(section_from)
+    n_to = len(section_to)
+    distances = numpy.empty((n_from, n_to), dtype=_FLOAT_DTYPE)
+
+    # Pack relation as uint8: 0 same, 1 to_anc, 2 from_anc, 3 coll.
+    relation_u = numpy.full(same_u.shape, 3, dtype=numpy.uint8)
+    relation_u[same_u] = 0
+    relation_u[to_anc_u] = 1
+    relation_u[from_anc_u] = 2
+
+    for start in range(0, n_from, row_chunk_size):
+        stop = min(start + row_chunk_size, n_from)
+        ui = inv_from[start:stop]
+        # (chunk, n_to) gathers from the small unique-section tables.
+        root = root_u[ui][:, inv_to]
+        rel = relation_u[ui][:, inv_to]
+        off_f = offset_from[start:stop][:, None]
+        off_t = offset_to[None, :]
+
+        chunk = numpy.empty((stop - start, n_to), dtype=_FLOAT_DTYPE)
+        same = rel == 0
+        to_anc = rel == 1
+        from_anc = rel == 2
+        coll = rel == 3
+        chunk[same] = numpy.abs(off_f - off_t)[same]
+        chunk[to_anc] = (root + off_f - off_t)[to_anc]
+        chunk[from_anc] = (root - off_f + off_t)[from_anc]
+        chunk[coll] = (root + off_f + off_t)[coll]
+        distances[start:stop] = chunk
+
     return distances
