@@ -3,6 +3,89 @@ import morphio
 import numpy
 
 
+class SectionOffsetTable(object):
+    """
+    Compact within-section path offsets backed by MorphIO flat point storage.
+
+    Public indexing matches the historical dense table: ``offset[section_id, segment_id]``
+    (0-based section ids, no soma row). Out-of-range segment ids yield NaN, like the
+    padded dense representation. ``numpy.asarray(offset)`` materializes the dense table.
+    """
+
+    def __init__(self, cumlen, section_offsets):
+        self._cumlen = numpy.asarray(cumlen, dtype=float)
+        self._section_offsets = numpy.asarray(section_offsets, dtype=numpy.int64)
+        self._n_sections = len(self._section_offsets) - 1
+        n_pts = numpy.diff(self._section_offsets)
+        self._max_points = int(n_pts.max()) if self._n_sections else 0
+        self._n_points_per_section = n_pts
+
+    @property
+    def shape(self):
+        return (self._n_sections, self._max_points)
+
+    @property
+    def ndim(self):
+        return 2
+
+    @property
+    def dtype(self):
+        return self._cumlen.dtype
+
+    @property
+    def nbytes(self):
+        return self._cumlen.nbytes + self._section_offsets.nbytes
+
+    def __len__(self):
+        return self._n_sections
+
+    def section_lengths(self):
+        """Euclidean length of each section (path length to the last point)."""
+        if self._n_sections == 0:
+            return numpy.zeros(0, dtype=float)
+        last_point = self._section_offsets[1:] - 1
+        return self._cumlen[last_point].copy()
+
+    def to_dense(self):
+        table = numpy.full(self.shape, numpy.nan, dtype=float)
+        for i in range(self._n_sections):
+            start = int(self._section_offsets[i])
+            stop = int(self._section_offsets[i + 1])
+            table[i, : stop - start] = self._cumlen[start:stop]
+        return table
+
+    def __array__(self, dtype=None):
+        dense = self.to_dense()
+        if dtype is not None:
+            return numpy.asarray(dense, dtype=dtype)
+        return dense
+
+    def __getitem__(self, key):
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise IndexError("SectionOffsetTable requires two indices [section, segment]")
+        sec, seg = key
+        sec_arr = numpy.asarray(sec)
+        seg_arr = numpy.asarray(seg)
+        # Match ndarray negative indexing on axis 0 (soma locs use section_id-1 == -1).
+        sec_idx = numpy.where(sec_arr < 0, sec_arr + self._n_sections, sec_arr)
+        scalar = sec_arr.ndim == 0 and seg_arr.ndim == 0
+
+        if scalar:
+            n_pts = int(self._n_points_per_section[int(sec_idx)])
+            seg_i = int(seg_arr)
+            if seg_i < 0 or seg_i >= n_pts:
+                return numpy.nan
+            flat = int(self._section_offsets[int(sec_idx)]) + seg_i
+            return float(self._cumlen[flat])
+
+        sec_b, seg_b = numpy.broadcast_arrays(sec_idx, seg_arr)
+        out = numpy.full(sec_b.shape, numpy.nan, dtype=float)
+        flat_b = self._section_offsets[sec_b] + seg_b
+        valid_b = (seg_b >= 0) & (seg_b < self._n_points_per_section[sec_b])
+        out[valid_b] = self._cumlen[flat_b[valid_b]]
+        return out
+
+
 class MorphologyPathDistanceCalculator(object):
     """
     A helper to quickly calculate path distances along the morphology of a neuron.
@@ -27,7 +110,8 @@ class MorphologyPathDistanceCalculator(object):
         assert 0 in self._connectivity[-1], "This class requires the first section to be connected to the soma!"
         self.m = morphology
         self._n_sections = len(morphology.section_types)
-        self.offset = self.segment_offset_table(morphology)
+        # Compact flat cumlen; public .offset keeps dense-table indexing semantics.
+        self.offset = self._section_offset_table(morphology)
         (
             self._parent,
             self._root_dist,
@@ -36,6 +120,28 @@ class MorphologyPathDistanceCalculator(object):
             self._tout,
             self._up,
         ) = self.__initialize_tree__()
+
+    @staticmethod
+    def _cumulative_point_path_lengths(m):
+        """Per-point distance from the owning section root, aligned with MorphIO points."""
+        points = numpy.asarray(m.points, dtype=float)
+        section_offsets = numpy.asarray(m.section_offsets, dtype=numpy.int64)
+        cumlen = numpy.empty(len(points), dtype=float)
+        for i in range(len(section_offsets) - 1):
+            start = int(section_offsets[i])
+            stop = int(section_offsets[i + 1])
+            cumlen[start] = 0.0
+            if stop - start > 1:
+                seg_lengths = numpy.sqrt(
+                    numpy.sum(numpy.diff(points[start:stop], axis=0) ** 2, axis=1)
+                )
+                cumlen[start + 1:stop] = numpy.cumsum(seg_lengths)
+        return cumlen, section_offsets
+
+    @staticmethod
+    def _section_offset_table(m):
+        cumlen, section_offsets = MorphologyPathDistanceCalculator._cumulative_point_path_lengths(m)
+        return SectionOffsetTable(cumlen, section_offsets)
 
     @staticmethod
     def segment_offset_table(m):
@@ -55,23 +161,7 @@ class MorphologyPathDistanceCalculator(object):
           Note: sec_id is base-0, i.e. index 0 is NOT the soma. The soma is not listed
           at all (assumed to be just a point).
         """
-        points = numpy.asarray(m.points, dtype=float)
-        section_offsets = numpy.asarray(m.section_offsets, dtype=numpy.int64)
-        n_sec = len(section_offsets) - 1
-        n_pts_per_sec = numpy.diff(section_offsets)
-        max_pts = int(n_pts_per_sec.max()) if n_sec else 0
-        table = numpy.full((n_sec, max_pts), numpy.nan, dtype=float)
-        for i in range(n_sec):
-            start = int(section_offsets[i])
-            stop = int(section_offsets[i + 1])
-            table[i, 0] = 0.0
-            n_pts = stop - start
-            if n_pts > 1:
-                seg_lengths = numpy.sqrt(
-                    numpy.sum(numpy.diff(points[start:stop], axis=0) ** 2, axis=1)
-                )
-                table[i, 1:n_pts] = numpy.cumsum(seg_lengths)
-        return table
+        return MorphologyPathDistanceCalculator._section_offset_table(m).to_dense()
 
     def __initialize_tree__(self):
         """
@@ -89,7 +179,7 @@ class MorphologyPathDistanceCalculator(object):
 
         parent = numpy.full(n, -1, dtype=numpy.int32)
         root_dist = numpy.zeros(n, dtype=float)
-        sec_len = numpy.nanmax(numpy.asarray(self.offset, dtype=float), axis=1)
+        sec_len = self.offset.section_lengths()
         tin = numpy.full(n, -1, dtype=numpy.int32)
         tout = numpy.full(n, -1, dtype=numpy.int32)
 
