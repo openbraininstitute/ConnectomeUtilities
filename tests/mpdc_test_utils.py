@@ -1,19 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Shared fixtures and reference loader for MorphologyPathDistanceCalculator tests."""
-import importlib.util
-import subprocess
-from pathlib import Path
-
+"""Shared fixtures for MorphologyPathDistanceCalculator tests."""
 import morphio
 import numpy as np
 import pandas as pd
 from morphio import PointLevel, SectionType
 from morphio.mut import Morphology as MutMorph
-
-from conntility.subcellular import MorphologyPathDistanceCalculator
-
-_REPO_ROOT = Path(__file__).resolve().parents[1]
-_MAIN_MODULE_CACHE = None
 
 
 def locs_df(rows, columns=None):
@@ -95,28 +86,8 @@ def build_chain_morphology(n_sections=50, seg_len=97.3):
     return morphio.Morphology(mut), seg_len
 
 
-def load_main_morphology_path_distance_calculator():
-    """Load MorphologyPathDistanceCalculator as it existed on origin/main (pairwise D/R)."""
-    global _MAIN_MODULE_CACHE
-    if _MAIN_MODULE_CACHE is not None:
-        return _MAIN_MODULE_CACHE.MorphologyPathDistanceCalculator
-
-    src = subprocess.check_output(
-        ["git", "show", "main:conntility/subcellular/neuron_morphology_path_distance.py"],
-        cwd=_REPO_ROOT,
-        text=True,
-    )
-    path = Path("/tmp/mpdc_main_original_for_tests.py")
-    path.write_text(src)
-    spec = importlib.util.spec_from_file_location("mpdc_main_original_for_tests", path)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    _MAIN_MODULE_CACHE = mod
-    return mod.MorphologyPathDistanceCalculator
-
-
 def as_offset_array(offset):
-    """ densify public offset table (ndarray or array-like wrapper). """
+    """Densify public offset table (ndarray or array-like wrapper)."""
     return np.asarray(offset, dtype=float)
 
 
