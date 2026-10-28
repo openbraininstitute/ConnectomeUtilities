@@ -227,11 +227,9 @@ class MorphologyPathDistanceCalculator(object):
             str_offset=str_offset,
         )
         if same_section_only:
-            # +1 for soma id 0; use cached section count (not len(m.sections)).
-            on_same_section = numpy.eye(self._n_sections + 1, dtype=bool)
-            on_same_section = on_same_section[
-                numpy.ix_(locs_from[str_section_id], locs_to[str_section_id])
-            ]
+            section_ids_from = locs_from[str_section_id].to_numpy()
+            section_ids_to = locs_to[str_section_id].to_numpy()
+            on_same_section = section_ids_from[:, None] == section_ids_to[None, :]
             distances = numpy.full(on_same_section.shape, numpy.nan, dtype=float)
             row, col = numpy.nonzero(on_same_section)
             distances[row, col] = numpy.abs(offset_from[row] - offset_to[col])
