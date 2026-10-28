@@ -85,6 +85,8 @@ class SectionOffsetTable(object):
             return float(self._path_length_from_section_root[point_index])
 
         section_id, segment_id = numpy.broadcast_arrays(section_id, segment_id)
+        section_id = section_id.astype(numpy.int64, copy=False)
+        segment_id = segment_id.astype(numpy.int64, copy=False)
         values = numpy.full(section_id.shape, numpy.nan, dtype=float)
         point_index = self._section_offsets[section_id] + segment_id
         in_range = (segment_id >= 0) & (segment_id < self._points_per_section[section_id])
