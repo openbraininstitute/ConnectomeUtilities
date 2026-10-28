@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
+from collections import deque
+
 import morphio
 import numpy
 
@@ -124,18 +126,15 @@ class MorphologyPathDistanceCalculator(object):
     @staticmethod
     def _cumulative_point_path_lengths(m):
         """Per-point distance from the owning section root, aligned with MorphIO points."""
-        points = numpy.asarray(m.points, dtype=float)
-        section_offsets = numpy.asarray(m.section_offsets, dtype=numpy.int64)
+        points = m.points
+        section_offsets = m.section_offsets
         cumlen = numpy.empty(len(points), dtype=float)
         for i in range(len(section_offsets) - 1):
-            start = int(section_offsets[i])
-            stop = int(section_offsets[i + 1])
-            cumlen[start] = 0.0
-            if stop - start > 1:
-                seg_lengths = numpy.sqrt(
-                    numpy.sum(numpy.diff(points[start:stop], axis=0) ** 2, axis=1)
-                )
-                cumlen[start + 1:stop] = numpy.cumsum(seg_lengths)
+            beg = section_offsets[i]
+            end = section_offsets[i + 1]
+            cumlen[beg] = 0.0
+            seg_lengths = numpy.sqrt(numpy.sum(numpy.diff(points[beg: end], axis=0) ** 2, axis=1))
+            cumlen[beg + 1: end] = numpy.cumsum(seg_lengths)
         return cumlen, section_offsets
 
     @staticmethod
@@ -196,7 +195,7 @@ class MorphologyPathDistanceCalculator(object):
         # Also assign DFS in/out times for ancestor queries.
         timer = 0
         # iterative DFS with explicit enter/exit using a stack of (node, child_index)
-        stack = [(root, 0) for root in reversed(connectivity.get(-1, ()))]
+        stack = deque((root, 0) for root in reversed(connectivity.get(-1, ())))
         while stack:
             node, idx = stack.pop()
             children = connectivity.get(node, ())
