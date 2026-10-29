@@ -126,7 +126,6 @@ class MorphologyPathDistanceCalculator(object):
         # Compact flat path lengths; public .offset keeps dense-table indexing semantics.
         self.offset = _section_offset_table(morphology)
         (
-            self._parent_section,
             self._path_length_to_section_root,
             self._section_length,
             self._dfs_time,
@@ -256,7 +255,6 @@ class MorphologyPathDistanceCalculator(object):
             self._dfs_time,
             self._path_length_to_section_root,
             self._section_length,
-            self._parent_section,
             self._ancestor_jump,
         )
 
@@ -411,11 +409,11 @@ def _section_tree_tables(connectivity, n_sections, section_length):
     ``connectivity`` must already be snapshotted from MorphIO (each access allocates).
 
     Returns:
-        parent_section: Parent section id for each section, -1 for roots.
         path_length_to_section_root: Path length from the soma to each section's first point.
         section_length: Euclidean length of each section (same array as passed in).
         dfs_time: Shape ``(n_sections, 2)`` — enter/exit DFS times (cols 0/1) packed for locality.
-        ancestor_jump: Binary-lifting table; ancestor_jump[k, i] is the 2**k-th ancestor of i.
+        ancestor_jump: Binary-lifting table; ``ancestor_jump[k, i]`` is the ``2**k``-th ancestor
+            of ``i`` (``ancestor_jump[0]`` is the parent map; no separate parent array).
     """
     parent_section = numpy.full(n_sections, -1, dtype=numpy.int32)
     path_length_to_section_root = numpy.zeros(n_sections, dtype=_FLOAT_DTYPE)
@@ -466,7 +464,6 @@ def _section_tree_tables(connectivity, n_sections, section_length):
         ]
 
     return (
-        parent_section,
         path_length_to_section_root,
         section_length,
         dfs_time,
@@ -480,7 +477,6 @@ def _section_pair_relations_and_root_distances(
     dfs_time,
     path_length_to_section_root,
     section_length,
-    parent_section,
     ancestor_jump,
 ):
     """Relation masks and section-start distances for every (from, to) section pair.
@@ -528,7 +524,7 @@ def _section_pair_relations_and_root_distances(
 
     jumped[:] = -1
     valid_climb = climb >= 0
-    jumped[valid_climb] = parent_section[climb[valid_climb]]
+    jumped[valid_climb] = ancestor_jump[0, climb[valid_climb]]
     lca = jumped
 
     path_from = path_length_to_section_root[section_from][:, None]
@@ -589,7 +585,6 @@ def _path_distances_vectorized(
     dfs_time,
     path_length_to_section_root,
     section_length,
-    parent_section,
     ancestor_jump,
 ):
     """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting."""
@@ -600,7 +595,6 @@ def _path_distances_vectorized(
             dfs_time,
             path_length_to_section_root,
             section_length,
-            parent_section,
             ancestor_jump,
         )
     )
