@@ -127,7 +127,6 @@ class MorphologyPathDistanceCalculator(object):
         self.offset = _section_offset_table(morphology)
         (
             self._path_length_to_section_root,
-            self._section_length,
             self._dfs_time,
             self._ancestor_jump,
         ) = _section_tree_tables(
@@ -254,7 +253,7 @@ class MorphologyPathDistanceCalculator(object):
             offset_to,
             self._dfs_time,
             self._path_length_to_section_root,
-            self._section_length,
+            self.offset,
             self._ancestor_jump,
         )
 
@@ -410,10 +409,12 @@ def _section_tree_tables(connectivity, n_sections, section_length):
 
     Returns:
         path_length_to_section_root: Path length from the soma to each section's first point.
-        section_length: Euclidean length of each section (same array as passed in).
         dfs_time: Shape ``(n_sections, 2)`` — enter/exit DFS times (cols 0/1) packed for locality.
         ancestor_jump: Binary-lifting table; ``ancestor_jump[k, i]`` is the ``2**k``-th ancestor
             of ``i`` (``ancestor_jump[0]`` is the parent map; no separate parent array).
+
+    ``section_length`` is used only while building (not retained); LCA queries derive section
+    ends from the compact offset table instead.
     """
     parent_section = numpy.full(n_sections, -1, dtype=numpy.int32)
     path_length_to_section_root = numpy.zeros(n_sections, dtype=_FLOAT_DTYPE)
@@ -465,9 +466,17 @@ def _section_tree_tables(connectivity, n_sections, section_length):
 
     return (
         path_length_to_section_root,
-        section_length,
         dfs_time,
         ancestor_jump,
+    )
+
+
+def _path_length_to_section_end(offset, path_length_to_section_root, section_ids):
+    """Soma → last point of each section (section root path + within-section length)."""
+    last_point = offset._section_offsets[section_ids + 1] - 1
+    return (
+        path_length_to_section_root[section_ids]
+        + offset._path_length_from_section_root[last_point]
     )
 
 
@@ -476,7 +485,7 @@ def _section_pair_relations_and_root_distances(
     section_to,
     dfs_time,
     path_length_to_section_root,
-    section_length,
+    offset,
     ancestor_jump,
 ):
     """Relation masks and section-start distances for every (from, to) section pair.
@@ -489,12 +498,13 @@ def _section_pair_relations_and_root_distances(
     n_from = len(section_from)
     n_to = len(section_to)
 
-    dfs_from = dfs_time[section_from]
-    dfs_to = dfs_time[section_to]
-    enter_from = dfs_from[:, :1]
-    exit_from = dfs_from[:, 1:]
-    enter_to = dfs_to[None, :, 0]
-    exit_to = dfs_to[None, :, 1]
+    # Column views: fancy-index 1-D enter/exit (not dfs_time[safe] → (n,n,2)).
+    dfs_enter = dfs_time[:, 0]
+    dfs_exit = dfs_time[:, 1]
+    enter_from = dfs_enter[section_from][:, None]
+    exit_from = dfs_exit[section_from][:, None]
+    enter_to = dfs_enter[section_to][None, :]
+    exit_to = dfs_exit[section_to][None, :]
 
     same = section_from[:, None] == section_to[None, :]
     to_anc = (enter_to <= enter_from) & (exit_from <= exit_to) & ~same
@@ -511,11 +521,10 @@ def _section_pair_relations_and_root_distances(
         jumped[:] = ancestor_jump[jump_level, safe]
         jumped[climb < 0] = -1
         numpy.maximum(jumped, 0, out=safe)
-        dfs_safe = dfs_time[safe]
         jumped_is_ancestor_of_to = (
             (jumped >= 0)
-            & (dfs_safe[..., 0] <= enter_to)
-            & (exit_to <= dfs_safe[..., 1])
+            & (dfs_enter[safe] <= enter_to)
+            & (exit_to <= dfs_exit[safe])
         )
         should_jump = (
             coll & (climb >= 0) & (jumped >= 0) & ~jumped_is_ancestor_of_to
@@ -537,10 +546,10 @@ def _section_pair_relations_and_root_distances(
     lca_ids = lca[rows, cols]
     branch = numpy.zeros(len(lca_ids), dtype=_FLOAT_DTYPE)
     has_section_lca = lca_ids >= 0
-    branch[has_section_lca] = (
-        path_length_to_section_root[lca_ids[has_section_lca]]
-        + section_length[lca_ids[has_section_lca]]
-    )
+    if numpy.any(has_section_lca):
+        branch[has_section_lca] = _path_length_to_section_end(
+            offset, path_length_to_section_root, lca_ids[has_section_lca]
+        )
     root_distance[rows, cols] = (
         path_length_to_section_root[section_from[rows]]
         + path_length_to_section_root[section_to[cols]]
@@ -584,7 +593,7 @@ def _path_distances_vectorized(
     offset_to,
     dfs_time,
     path_length_to_section_root,
-    section_length,
+    offset,
     ancestor_jump,
 ):
     """Vectorized pairwise path distances using O(1) ancestor tests and binary lifting."""
@@ -594,7 +603,7 @@ def _path_distances_vectorized(
             section_to,
             dfs_time,
             path_length_to_section_root,
-            section_length,
+            offset,
             ancestor_jump,
         )
     )
