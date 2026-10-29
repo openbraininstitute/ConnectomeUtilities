@@ -129,8 +129,7 @@ class MorphologyPathDistanceCalculator(object):
             self._parent_section,
             self._path_length_to_section_root,
             self._section_length,
-            self._dfs_enter,
-            self._dfs_exit,
+            self._dfs_time,
             self._ancestor_jump,
         ) = _section_tree_tables(
             connectivity, self._n_sections, self.offset.section_lengths()
@@ -254,8 +253,7 @@ class MorphologyPathDistanceCalculator(object):
             section_to,
             offset_from,
             offset_to,
-            self._dfs_enter,
-            self._dfs_exit,
+            self._dfs_time,
             self._path_length_to_section_root,
             self._section_length,
             self._parent_section,
@@ -416,13 +414,13 @@ def _section_tree_tables(connectivity, n_sections, section_length):
         parent_section: Parent section id for each section, -1 for roots.
         path_length_to_section_root: Path length from the soma to each section's first point.
         section_length: Euclidean length of each section (same array as passed in).
-        dfs_enter, dfs_exit: DFS enter/exit times for O(1) ancestor tests.
+        dfs_time: Shape ``(n_sections, 2)`` — enter/exit DFS times (cols 0/1) packed for locality.
         ancestor_jump: Binary-lifting table; ancestor_jump[k, i] is the 2**k-th ancestor of i.
     """
     parent_section = numpy.full(n_sections, -1, dtype=numpy.int32)
     path_length_to_section_root = numpy.zeros(n_sections, dtype=_FLOAT_DTYPE)
-    dfs_enter = numpy.full(n_sections, -1, dtype=numpy.int32)
-    dfs_exit = numpy.full(n_sections, -1, dtype=numpy.int32)
+    # Pack enter/exit adjacent so ancestor gathers pull both times in one access.
+    dfs_time = numpy.full((n_sections, 2), -1, dtype=numpy.int32)
 
     # connectivity is parent_id -> child section ids; -1 is the soma.
     # Prefer this over m.sections / root_sections (those allocate Section wrappers).
@@ -443,7 +441,7 @@ def _section_tree_tables(connectivity, n_sections, section_length):
         section_id, next_child_index = stack.pop()
         child_ids = connectivity.get(section_id, ())
         if next_child_index == 0:
-            dfs_enter[section_id] = dfs_clock
+            dfs_time[section_id, 0] = dfs_clock
             dfs_clock += 1
             parent_id = parent_section[section_id]
             if parent_id >= 0:
@@ -454,7 +452,7 @@ def _section_tree_tables(connectivity, n_sections, section_length):
             stack.append((section_id, next_child_index + 1))
             stack.append((child_ids[next_child_index], 0))
         else:
-            dfs_exit[section_id] = dfs_clock
+            dfs_time[section_id, 1] = dfs_clock
             dfs_clock += 1
 
     n_jumps = max(1, n_sections.bit_length())
@@ -471,8 +469,7 @@ def _section_tree_tables(connectivity, n_sections, section_length):
         parent_section,
         path_length_to_section_root,
         section_length,
-        dfs_enter,
-        dfs_exit,
+        dfs_time,
         ancestor_jump,
     )
 
@@ -480,8 +477,7 @@ def _section_tree_tables(connectivity, n_sections, section_length):
 def _section_pair_relations_and_root_distances(
     section_from,
     section_to,
-    dfs_enter,
-    dfs_exit,
+    dfs_time,
     path_length_to_section_root,
     section_length,
     parent_section,
@@ -497,10 +493,12 @@ def _section_pair_relations_and_root_distances(
     n_from = len(section_from)
     n_to = len(section_to)
 
-    enter_from = dfs_enter[section_from][:, None]
-    exit_from = dfs_exit[section_from][:, None]
-    enter_to = dfs_enter[section_to][None, :]
-    exit_to = dfs_exit[section_to][None, :]
+    dfs_from = dfs_time[section_from]
+    dfs_to = dfs_time[section_to]
+    enter_from = dfs_from[:, :1]
+    exit_from = dfs_from[:, 1:]
+    enter_to = dfs_to[None, :, 0]
+    exit_to = dfs_to[None, :, 1]
 
     same = section_from[:, None] == section_to[None, :]
     to_anc = (enter_to <= enter_from) & (exit_from <= exit_to) & ~same
@@ -517,10 +515,11 @@ def _section_pair_relations_and_root_distances(
         jumped[:] = ancestor_jump[jump_level, safe]
         jumped[climb < 0] = -1
         numpy.maximum(jumped, 0, out=safe)
+        dfs_safe = dfs_time[safe]
         jumped_is_ancestor_of_to = (
             (jumped >= 0)
-            & (dfs_enter[safe] <= enter_to)
-            & (exit_to <= dfs_exit[safe])
+            & (dfs_safe[..., 0] <= enter_to)
+            & (exit_to <= dfs_safe[..., 1])
         )
         should_jump = (
             coll & (climb >= 0) & (jumped >= 0) & ~jumped_is_ancestor_of_to
@@ -587,8 +586,7 @@ def _path_distances_vectorized(
     section_to,
     offset_from,
     offset_to,
-    dfs_enter,
-    dfs_exit,
+    dfs_time,
     path_length_to_section_root,
     section_length,
     parent_section,
@@ -599,8 +597,7 @@ def _path_distances_vectorized(
         _section_pair_relations_and_root_distances(
             section_from,
             section_to,
-            dfs_enter,
-            dfs_exit,
+            dfs_time,
             path_length_to_section_root,
             section_length,
             parent_section,
