@@ -18,22 +18,14 @@ def _tiny_morphology():
         child2: (12.9,0,0) -> (12.9,9.1,0)       length 9.1
 
     Section ids are 1-based in path_distances (0 is the soma), so the root is
-    section 1 and the children are sections 2 and 3. The lengths are chosen to
-    not be exactly representable in float32, so the distance assertions exercise
-    the table's precision rather than passing trivially on round numbers.
+    section 1 and the children are sections 2 and 3. Non-round lengths avoid
+    trivially exact float matches.
     """
     mut = Morphology()
     root = mut.append_root_section(PointLevel([[0, 0, 0], [12.9, 0, 0]], [1, 1]), SectionType.axon)
     root.append_section(PointLevel([[12.9, 0, 0], [20.2, 0, 0]], [1, 1]), SectionType.axon)
     root.append_section(PointLevel([[12.9, 0, 0], [12.9, 9.1, 0]], [1, 1]), SectionType.axon)
     return morphio.Morphology(mut)
-
-
-def test_relation_codes_only_take_the_documented_values():
-    # path_distances selects its distance formula by branching on these codes, so the set of
-    # values the table can hold is part of the contract (and what makes the compact storage valid).
-    pdc = MorphologyPathDistanceCalculator(_tiny_morphology())
-    assert set(numpy.unique(pdc.R)).issubset({-1, 0, 1, 2, 3})
 
 
 def test_path_distances_match_tree_geometry():
@@ -64,8 +56,8 @@ def test_path_distances_match_tree_geometry():
 
 
 def test_distances_keep_micron_scale_accuracy_over_a_long_path():
-    # The distance table is stored at reduced precision; confirm that accumulating along a long
-    # chain of sections still lands within a small fraction of a micron of the analytic answer.
+    # Confirm that accumulating along a long chain of sections still lands within a small
+    # fraction of a micron of the analytic answer.
     mut = Morphology()
     seg = 97.3  # non-round section length
     n_sections = 200

@@ -33,6 +33,7 @@ dependencies = [
     "libsonata>=0.1.10",
     "bluepysnap>=3.0.0",
     "voxcell>=2.3.0",
+    "morphio>=3.5.1",
 ]
 
 [project.urls]
