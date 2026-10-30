@@ -121,7 +121,7 @@ def _cumulative_point_path_lengths(points, section_offsets):
             segment_lengths = numpy.sqrt(
                 numpy.sum(numpy.diff(points[beg:end], axis=0) ** 2, axis=1)
             )
-            cumlen[beg + 1 : end] = numpy.cumsum(segment_lengths)
+            cumlen[beg + 1:end] = numpy.cumsum(segment_lengths)
     return cumlen
 
 
