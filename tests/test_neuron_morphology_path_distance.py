@@ -242,6 +242,22 @@ def test_nearest_neighbor_distances_unnormalized(calc):
     np.testing.assert_allclose(result["g2"], [7.0, 7.0])
 
 
+def test_nearest_neighbor_distances_singleton_group_is_nan(calc):
+    """A group with one location has no neighbor → NaN (covers __nnd__ len<=1)."""
+    locs = _locs(
+        [
+            [3, 0, 1.0],
+            [3, 0, 9.0],
+            [5, 0, 3.0],
+        ]
+    )
+    locs.index = pd.Index(["pair", "pair", "solo"], name="group")
+    result = calc.nearest_neighbor_distances(locs, normalize=False)
+    assert list(result.index) == ["pair", "solo"]
+    np.testing.assert_allclose(result["pair"], [8.0, 8.0])
+    assert np.isscalar(result["solo"]) and np.isnan(result["solo"])
+
+
 def test_nearest_neighbor_distances_normalized(calc):
     locs = _locs(
         [
