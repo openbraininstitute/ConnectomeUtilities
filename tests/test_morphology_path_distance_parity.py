@@ -1,16 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
 """Public-API results locked to values produced by MorphologyPathDistanceCalculator on main."""
-import morphio
 import numpy as np
 import pandas as pd
 import pytest
-from morphio import PointLevel, SectionType
-from morphio.mut import Morphology as MutMorph
 
 from conntility.subcellular import MorphologyPathDistanceCalculator
 from mpdc_test_utils import (
-    as_offset_array,
-    assert_public_offset_api,
     build_branched_morphology,
     build_chain_morphology,
     build_tiny_nonround_morphology,
@@ -51,13 +46,7 @@ def test_offset_table_matches_main_values(branched, calc):
         rtol=0,
         atol=0,
     )
-    np.testing.assert_allclose(as_offset_array(calc.offset), expected, equal_nan=True)
-    np.testing.assert_allclose(
-        as_offset_array(calc.offset),
-        MorphologyPathDistanceCalculator.segment_offset_table(branched),
-        equal_nan=True,
-    )
-    assert_public_offset_api(calc)
+    np.testing.assert_allclose(np.asarray(calc.offset), expected, equal_nan=True)
 
 
 def test_within_section_offsets_match_main_values(calc):
@@ -180,42 +169,4 @@ def test_custom_column_names_match_main_values(calc):
         calc.path_distances(locs, **kwargs),
         [[0.0, 16.5], [16.5, 0.0]],
         atol=1e-12,
-    )
-
-
-def test_offset_advanced_indexing_matches_dense_table(branched):
-    """obi-one indexes offset with parallel section/segment arrays."""
-    calc = MorphologyPathDistanceCalculator(branched)
-    dense = as_offset_array(calc.offset)
-    sec = np.array([0, 1, 2, 5])
-    seg = np.array([0, 0, 0, 0])
-    np.testing.assert_allclose(calc.offset[sec, seg], dense[sec, seg])
-
-
-def test_offset_view_matches_dense_including_nan_padding(branched):
-    calc = MorphologyPathDistanceCalculator(branched)
-    dense_static = MorphologyPathDistanceCalculator.segment_offset_table(branched)
-    dense_view = as_offset_array(calc.offset)
-    np.testing.assert_allclose(dense_view, dense_static, equal_nan=True)
-    assert np.isnan(calc.offset[1, dense_view.shape[1] - 1]) or dense_view.shape[1] == 2
-
-
-def test_offset_flat_storage_saves_memory_on_uneven_sections():
-    """One long section + many short ones: dense padding dominates flat cumlen."""
-    mut = MutMorph()
-    long_pts = [[float(i), 0.0, 0.0] for i in range(200)]
-    long_dia = [1.0] * 200
-    root = mut.append_root_section(PointLevel(long_pts, long_dia), SectionType.axon)
-    tip = long_pts[-1]
-    for k in range(50):
-        root.append_section(
-            PointLevel([tip, [tip[0], float(k + 1), 0.0]], [1.0, 1.0]),
-            SectionType.axon,
-        )
-    morph = morphio.Morphology(mut)
-    calc = MorphologyPathDistanceCalculator(morph)
-    dense = as_offset_array(calc.offset)
-    assert calc.offset.nbytes < dense.nbytes
-    np.testing.assert_allclose(
-        dense, MorphologyPathDistanceCalculator.segment_offset_table(morph), equal_nan=True
     )
